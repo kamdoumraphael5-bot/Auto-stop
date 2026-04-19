@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Country {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  isActive  Boolean  @default(false)
+  flag      String?
+  phoneCode String
+  currency  String
+  createdAt DateTime @default(now())
+  
+  users User[]
+  rides Ride[]
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  name        String
+  phone       String
+  photoUrl    String?
+  countryId   String
+  country     Country  @relation(fields: [countryId], references: [id])
+  role        Role     @default(USER)
+  isActive    Boolean  @default(true)
+  rating      Float    @default(0)
+  createdAt   DateTime @default(now())
+  
+  // CNI / Passeport
+  cniNumber        String?
+  cniExpiryDate    DateTime?
+  cniVerified      Boolean  @default(false)
+  
+  birthDate        DateTime?
+  age              Int?
+  experienceLevel  String?
+  bio              String?
+  phoneVerified    Boolean  @default(false)
+  emailVerified    Boolean  @default(false)
+  totalTrips       Int      @default(0)
+  registrationDate DateTime @default(now())
+  preferences      String?
+  gallery          String[]
+  
+  expoPushToken        String?
+  notificationsEnabled Boolean  @default(true)
+  
+  ridesAsDriver Ride[] @relation("DriverRides")
+  bookings      Booking[]
+  reviewsGiven  Review[] @relation("Reviewer")
+  reviewsReceived Review[] @relation("Target")
+  conversations Participant[]
+  messagesSent  Message[] @relation("SenderMessages")
+  messagesReceived Message[] @relation("ReceiverMessages")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model Ride {
+  id              String      @id @default(cuid())
+  driverId        String
+  driver          User        @relation("DriverRides", fields: [driverId], references: [id])
+  countryId       String
+  country         Country     @relation(fields: [countryId], references: [id])
+  departure       String
+  meetingPoint    String?
+  destination     String
+  dropoffPoint    String?
+  date            DateTime
+  totalSeats      Int         @default(4)
+  availableSeats  Int         @default(4)
+  price           Float
+  vehicleType     VehicleType
+  vehicleBrand    String
+  licensePlate    String?
+  estimatedDuration Int?
+  arrivalTime     DateTime?
+  isRecurring     Boolean     @default(false)
+  isHidden        Boolean     @default(false)
+  status          RideStatus  @default(SCHEDULED)
+  createdAt       DateTime    @default(now())
+  
+  reminderSent2h     Boolean @default(false)
+  reminderSent30min  Boolean @default(false)
+  reminderSent15min  Boolean @default(false)
+  reminderSent10min  Boolean @default(false)
+  reminderSent5min   Boolean @default(false)
+  securitySent       Boolean @default(false)
+  
+  bookings Booking[]
+  reviews  Review[]
+  conversations Conversation[]
+}
+
+enum VehicleType {
+  MOTO
+  TAXI
+  MINIBUS
+  BUS
+  COASTER
+  CAMION
+  AUTRE
+}
+
+enum RideStatus {
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  rideId          String
+  ride            Ride          @relation(fields: [rideId], references: [id])
+  passengerId     String
+  passenger       User          @relation(fields: [passengerId], references: [id])
+  seats           Int
+  status          BookingStatus @default(PENDING)
+  createdAt       DateTime      @default(now())
+  
+  reminderSent       Boolean @default(false)
+  securitySent       Boolean @default(false)
+  ratingSent         Boolean @default(false)
+  
+  // Informations de réservation
+  bookerName      String?
+  bookerPhone     String?
+  travelerName    String?
+  travelerPhone   String?
+  idNumber        String?
+  idExpiryDate    DateTime?
+  amount          Float?
+  paymentMethod   String?
+  
+  // 3 numéros de confiance
+  trustedContact1  String?
+  trustedContact2  String?
+  trustedContact3  String?
+  
+  // Notation
+  canRate          Boolean   @default(true)
+  ratingDeadline   DateTime?
+  ratingGiven      Boolean   @default(false)
+  ratingValue      Int?
+  ratingComment    String?
+  ratingDate       DateTime?
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  rideId      String
+  ride        Ride     @relation(fields: [rideId], references: [id])
+  reviewerId  String
+  reviewer    User     @relation("Reviewer", fields: [reviewerId], references: [id])
+  targetId    String
+  target      User     @relation("Target", fields: [targetId], references: [id])
+  rating      Int
+  comment     String?
+  category    String?
+  createdAt   DateTime @default(now())
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  rideId    String?
+  ride      Ride?    @relation(fields: [rideId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  participants Participant[]
+  messages      Message[]
+}
+
+model Participant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime     @default(now())
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  senderId       String
+  sender         User         @relation("SenderMessages", fields: [senderId], references: [id])
+  receiverId     String
+  receiver       User         @relation("ReceiverMessages", fields: [receiverId], references: [id])
+  content        String
+  type           String       @default("text")
+  fileUrl        String?
+  fileName       String?
+  fileSize       Int?
+  isRead         Boolean      @default(false)
+  isDelivered    Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
