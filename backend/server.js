@@ -1119,6 +1119,42 @@ app.get('/api/users/:id/reviews', async (req, res) => {
         res.status(500).json({ error: 'Erreur lors du chargement des avis' });
     }
 });
+// ============ ROUTE POUR MODIFIER LA VISIBILITÉ D'UN TRAJET ============
+app.put('/api/rides/:id/visibility', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { isHidden } = req.body;
+        
+        console.log('👁️ Modification visibilité trajet:', { id, isHidden, userId: req.userId });
+        
+        // Vérifier que le trajet existe
+        const ride = await prisma.ride.findUnique({
+            where: { id: id }
+        });
+        
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+        
+        // Vérifier que l'utilisateur est le conducteur
+        if (ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Non autorisé - vous n\'êtes pas le conducteur de ce trajet' });
+        }
+        
+        // Mettre à jour la visibilité
+        const updatedRide = await prisma.ride.update({
+            where: { id: id },
+            data: { isHidden: isHidden }
+        });
+        
+        console.log('✅ Visibilité mise à jour:', { id, isHidden: updatedRide.isHidden });
+        res.json({ message: 'Visibilité mise à jour', ride: updatedRide });
+        
+    } catch (error) {
+        console.error('❌ Erreur modification visibilité:', error);
+        res.status(500).json({ error: 'Erreur lors de la modification de la visibilité' });
+    }
+});
 
 // ============ DÉMARRER LE SERVEUR ============
 server.listen(PORT, '0.0.0.0', () => {
