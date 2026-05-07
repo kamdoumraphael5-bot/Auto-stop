@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 
 const API_URL = 'http://192.168.0.109:3000';
 
@@ -18,7 +19,8 @@ export default function BookingScreen({ route, navigation }) {
   const [idNumber, setIdNumber] = useState('');
   const [idExpiryDate, setIdExpiryDate] = useState('');
   const [amount, setAmount] = useState(ride?.price?.toString() || '');
-  const [paymentMethod, setPaymentMethod] = useState('ORANGE_MONEY');
+  const [selectedPaymentType, setSelectedPaymentType] = useState('mobile_money'); // 'mobile_money' ou 'card'
+  const [mobileMoneyNumber, setMobileMoneyNumber] = useState(''); // Numéro pour Mobile Money
   const [loading, setLoading] = useState(false);
   
   // 3 numéros de confiance
@@ -26,11 +28,10 @@ export default function BookingScreen({ route, navigation }) {
   const [trustedContact2, setTrustedContact2] = useState('');
   const [trustedContact3, setTrustedContact3] = useState('');
   
-  // États pour la validation (surlignage rouge)
+  // États pour la validation
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Indicatif téléphonique par défaut basé sur le pays de l'utilisateur
   const getDefaultPhoneCode = () => {
     const countryCodes = {
       'Cameroun': '+237',
@@ -59,18 +60,17 @@ export default function BookingScreen({ route, navigation }) {
       idExpiryDate: "Date d'expiration",
       paymentInfo: 'Informations de paiement',
       amount: 'Somme à payer (FCFA)',
-      paymentMethod: 'Mode de paiement',
+      paymentMethod: 'Moyen de paiement',
+      mobileMoney: '📱 Mobile Money',
+      mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
+      mobileMoneyPlaceholder: 'Votre numéro de paiement (ex: 6XXXXXXXX)',
+      card: '💳 Carte bancaire',
+      cardDesc: 'Visa, Mastercard',
       trustedContacts: 'Contacts de confiance (3 numéros)',
       trustedContactHelp: 'Ces numéros seront utilisés pour les alertes de sécurité',
       contact1: '1er numéro de confiance',
       contact2: '2ème numéro de confiance',
       contact3: '3ème numéro de confiance',
-      methods: {
-        ORANGE_MONEY: '💰 Orange Money',
-        MTN_MONEY: '💛 MTN Mobile Money',
-        CASH: '💵 Espèces (au conducteur)',
-        WAVE: '📱 Wave'
-      },
       confirm: 'Confirmer la réservation',
       cancel: 'Annuler',
       success: 'Réservation confirmée !',
@@ -97,17 +97,16 @@ export default function BookingScreen({ route, navigation }) {
       paymentInfo: 'Payment information',
       amount: 'Amount (FCFA)',
       paymentMethod: 'Payment method',
+      mobileMoney: '📱 Mobile Money',
+      mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
+      mobileMoneyPlaceholder: 'Your payment number (ex: 6XXXXXXXX)',
+      card: '💳 Card',
+      cardDesc: 'Visa, Mastercard',
       trustedContacts: 'Trusted contacts (3 numbers)',
       trustedContactHelp: 'These numbers will be used for security alerts',
       contact1: '1st trusted number',
       contact2: '2nd trusted number',
       contact3: '3rd trusted number',
-      methods: {
-        ORANGE_MONEY: '💰 Orange Money',
-        MTN_MONEY: '💛 MTN Mobile Money',
-        CASH: '💵 Cash (to driver)',
-        WAVE: '📱 Wave'
-      },
       confirm: 'Confirm booking',
       cancel: 'Cancel',
       success: 'Booking confirmed!',
@@ -134,17 +133,16 @@ export default function BookingScreen({ route, navigation }) {
       paymentInfo: 'Información de pago',
       amount: 'Monto (FCFA)',
       paymentMethod: 'Método de pago',
+      mobileMoney: '📱 Dinero móvil',
+      mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
+      mobileMoneyPlaceholder: 'Su número de pago (ej: 6XXXXXXXX)',
+      card: '💳 Tarjeta',
+      cardDesc: 'Visa, Mastercard',
       trustedContacts: 'Contactos de confianza (3 números)',
       trustedContactHelp: 'Estos números se usarán para alertas de seguridad',
       contact1: '1er número de confianza',
       contact2: '2º número de confianza',
       contact3: '3er número de confianza',
-      methods: {
-        ORANGE_MONEY: '💰 Orange Money',
-        MTN_MONEY: '💛 MTN Mobile Money',
-        CASH: '💵 Efectivo (al conductor)',
-        WAVE: '📱 Wave'
-      },
       confirm: 'Confirmar reserva',
       cancel: 'Cancelar',
       success: '¡Reserva confirmada!',
@@ -171,17 +169,16 @@ export default function BookingScreen({ route, navigation }) {
       paymentInfo: 'Informação de pagamento',
       amount: 'Valor (FCFA)',
       paymentMethod: 'Método de pagamento',
+      mobileMoney: '📱 Dinheiro móvel',
+      mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
+      mobileMoneyPlaceholder: 'Seu número de pagamento (ex: 6XXXXXXXX)',
+      card: '💳 Cartão',
+      cardDesc: 'Visa, Mastercard',
       trustedContacts: 'Contactos de confiança (3 números)',
       trustedContactHelp: 'Estes números serão usados para alertas de segurança',
       contact1: '1º número de confiança',
       contact2: '2º número de confiança',
       contact3: '3º número de confiança',
-      methods: {
-        ORANGE_MONEY: '💰 Orange Money',
-        MTN_MONEY: '💛 MTN Mobile Money',
-        CASH: '💵 Dinheiro (ao motorista)',
-        WAVE: '📱 Wave'
-      },
       confirm: 'Confirmar reserva',
       cancel: 'Cancelar',
       success: 'Reserva confirmada!',
@@ -196,7 +193,6 @@ export default function BookingScreen({ route, navigation }) {
 
   const t = translations[language];
 
-  // Validation des champs
   const validatePhone = (phone) => {
     const phoneRegex = /^[0-9]{9,12}$/;
     return phoneRegex.test(phone);
@@ -234,6 +230,11 @@ export default function BookingScreen({ route, navigation }) {
     if (!validatePhone(trustedContact2)) newErrors.trustedContact2 = t.phoneInvalid;
     if (!validatePhone(trustedContact3)) newErrors.trustedContact3 = t.phoneInvalid;
     
+    // Validation pour Mobile Money
+    if (selectedPaymentType === 'mobile_money' && !validatePhone(mobileMoneyNumber)) {
+      newErrors.mobileMoneyNumber = t.phoneInvalid;
+    }
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -247,6 +248,7 @@ export default function BookingScreen({ route, navigation }) {
     }
   };
 
+  // ============ FONCTION HANDLEBOOKING ============
   const handleBooking = async () => {
     if (!validateForm()) {
       Alert.alert(t.error, t.fillFields);
@@ -255,14 +257,38 @@ export default function BookingScreen({ route, navigation }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/bookings`, {
+      const rideIdToUse = ride?.rideId || ride?.id;
+      
+      console.log('📝 rideId à utiliser:', rideIdToUse);
+      console.log('📝 Moyen de paiement choisi:', selectedPaymentType);
+      console.log('📝 Numéro de paiement:', mobileMoneyNumber);
+      
+      if (!rideIdToUse) {
+        Alert.alert(t.error, 'Erreur: Trajet non trouvé');
+        setLoading(false);
+        return;
+      }
+
+      // Initier le paiement
+      const paymentResponse = await fetch(`${API_URL}/api/payment/initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${user?.token}`
         },
         body: JSON.stringify({
-          rideId: ride.rideId,
+          rideId: rideIdToUse,
+          paymentMethod: selectedPaymentType,
+          phoneNumber: selectedPaymentType === 'mobile_money' ? `${phoneCode}${mobileMoneyNumber}` : `${phoneCode}${bookerPhone}`,
+          isInternational: false
+        })
+      });
+
+      const paymentData = await paymentResponse.json();
+
+      if (paymentResponse.ok && paymentData.paymentUrl) {
+        const bookingInfo = {
+          rideId: rideIdToUse,
           seats: 1,
           bookerName,
           bookerPhone: `${phoneCode}${bookerPhone}`,
@@ -270,22 +296,24 @@ export default function BookingScreen({ route, navigation }) {
           travelerPhone: `${phoneCode}${travelerPhone}`,
           idNumber,
           idExpiryDate: idExpiryDate.split('/').reverse().join('-'),
-          amount: parseFloat(amount),
-          paymentMethod,
+          amount: paymentData.amount,
+          paymentMethod: selectedPaymentType,
+          mobileMoneyNumber: selectedPaymentType === 'mobile_money' ? mobileMoneyNumber : null,
           trustedContact1: `${phoneCode}${trustedContact1}`,
           trustedContact2: `${phoneCode}${trustedContact2}`,
           trustedContact3: `${phoneCode}${trustedContact3}`
-        }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        Alert.alert(t.success, 'Votre place a été réservée avec succès !');
-        navigation.goBack();
+        };
+        
+        await AsyncStorage.setItem('pendingBooking', JSON.stringify(bookingInfo));
+        await AsyncStorage.setItem('pendingPaymentRef', paymentData.reference);
+        
+        Linking.openURL(paymentData.paymentUrl);
+        
       } else {
-        Alert.alert(t.error, data.error);
+        Alert.alert(t.error, paymentData.error || 'Impossible d\'initier le paiement');
       }
     } catch (error) {
+      console.error('❌ Erreur:', error);
       Alert.alert(t.error, 'Connexion au serveur impossible');
     } finally {
       setLoading(false);
@@ -308,9 +336,6 @@ export default function BookingScreen({ route, navigation }) {
         <Text style={styles.rideTitle}>🚗 {t.rideInfo}</Text>
         <Text style={styles.rideRoute}>
           {t.from} {ride?.departure} {t.to} {ride?.destination}
-        </Text>
-        <Text style={styles.rideDetails}>
-          🚀 {ride?.departureTime} → 🏁 {ride?.arrivalTime} ({ride?.duration})
         </Text>
         <Text style={styles.rideDetails}>
           👤 {ride?.driverName} • {ride?.vehicleBrand} {ride?.licensePlate ? `[${ride?.licensePlate}]` : ''}
@@ -453,18 +478,46 @@ export default function BookingScreen({ route, navigation }) {
       />
       {errors.amount && touched.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
 
-      <View style={styles.pickerContainer}>
-        <Picker
-          selectedValue={paymentMethod}
-          onValueChange={(itemValue) => setPaymentMethod(itemValue)}
-          style={styles.picker}
+      {/* Sélection du moyen de paiement */}
+      <View style={styles.paymentMethodContainer}>
+        <TouchableOpacity 
+          style={[styles.paymentMethodButton, selectedPaymentType === 'mobile_money' && styles.paymentMethodSelected]}
+          onPress={() => setSelectedPaymentType('mobile_money')}
         >
-          <Picker.Item label={t.methods.ORANGE_MONEY} value="ORANGE_MONEY" />
-          <Picker.Item label={t.methods.MTN_MONEY} value="MTN_MONEY" />
-          <Picker.Item label={t.methods.CASH} value="CASH" />
-          <Picker.Item label={t.methods.WAVE} value="WAVE" />
-        </Picker>
+          <Text style={[styles.paymentMethodText, selectedPaymentType === 'mobile_money' && styles.paymentMethodTextSelected]}>
+            {t.mobileMoney}
+          </Text>
+          <Text style={styles.paymentMethodDesc}>{t.mobileMoneyDesc}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.paymentMethodButton, selectedPaymentType === 'card' && styles.paymentMethodSelected]}
+          onPress={() => setSelectedPaymentType('card')}
+        >
+          <Text style={[styles.paymentMethodText, selectedPaymentType === 'card' && styles.paymentMethodTextSelected]}>
+            {t.card}
+          </Text>
+          <Text style={styles.paymentMethodDesc}>{t.cardDesc}</Text>
+        </TouchableOpacity>
       </View>
+
+      {/* Champ pour le numéro de Mobile Money (affiché seulement si Mobile Money est sélectionné) */}
+      {selectedPaymentType === 'mobile_money' && (
+        <View style={styles.mobileMoneyContainer}>
+          <View style={styles.phoneCodeContainer}>
+            <Text style={styles.phoneCodeText}>{phoneCode}</Text>
+          </View>
+          <TextInput
+            style={[styles.phoneInput, errors.mobileMoneyNumber && touched.mobileMoneyNumber && styles.inputError]}
+            placeholder={t.mobileMoneyPlaceholder}
+            value={mobileMoneyNumber}
+            onChangeText={setMobileMoneyNumber}
+            onBlur={() => handleFieldBlur('mobileMoneyNumber', mobileMoneyNumber, validatePhone)}
+            keyboardType="phone-pad"
+          />
+        </View>
+      )}
+      {errors.mobileMoneyNumber && touched.mobileMoneyNumber && <Text style={styles.errorText}>{errors.mobileMoneyNumber}</Text>}
 
       {/* Boutons */}
       <TouchableOpacity style={styles.confirmButton} onPress={handleBooking} disabled={loading}>
@@ -496,10 +549,43 @@ const styles = StyleSheet.create({
   phoneCodeContainer: { backgroundColor: '#f0f0f0', paddingHorizontal: 15, paddingVertical: 15, borderRadius: 10, borderWidth: 1, borderColor: '#ddd' },
   phoneCodeText: { fontSize: 16, color: '#333' },
   phoneInput: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 15, borderRadius: 10, fontSize: 16, backgroundColor: '#f8f8f8', marginLeft: 10 },
-  pickerContainer: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, backgroundColor: '#f8f8f8', marginBottom: 20 },
-  picker: { height: 50 },
+  mobileMoneyContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
   confirmButton: { backgroundColor: '#4CAF50', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
   confirmButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
   cancelButton: { backgroundColor: '#f0f0f0', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 30 },
-  cancelButtonText: { color: '#FF5A5F', fontSize: 16, fontWeight: 'bold' }
+  cancelButtonText: { color: '#FF5A5F', fontSize: 16, fontWeight: 'bold' },
+  
+  paymentMethodContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 15,
+    marginBottom: 20,
+  },
+  paymentMethodButton: {
+    flex: 1,
+    backgroundColor: '#f8f8f8',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 12,
+    padding: 15,
+    alignItems: 'center',
+  },
+  paymentMethodSelected: {
+    borderColor: '#FF5A5F',
+    backgroundColor: '#fff5f5',
+  },
+  paymentMethodText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  paymentMethodTextSelected: {
+    color: '#FF5A5F',
+  },
+  paymentMethodDesc: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
 });

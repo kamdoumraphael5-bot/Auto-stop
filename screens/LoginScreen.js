@@ -79,7 +79,6 @@ export default function LoginScreen({ navigation, updateUser }) {
       if (response.ok) {
         console.log('📱 Connexion réussie, utilisateur:', data.user.id);
         
-        // Mettre à jour l'utilisateur dans le contexte global
         if (updateUser) {
           updateUser(data.user);
         } else {
@@ -132,7 +131,8 @@ export default function LoginScreen({ navigation, updateUser }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={() => Alert.alert('Info', 'Fonctionnalité à venir')}>
+        {/* ✅ CORRECTION : Navigation vers ForgotPasswordScreen */}
+        <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.forgotText}>{t.forgotPassword}</Text>
         </TouchableOpacity>
 

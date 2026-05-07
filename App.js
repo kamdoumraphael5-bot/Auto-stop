@@ -1,3 +1,4 @@
+import RateRideScreen from './screens/RateRideScreen';
 import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -14,6 +15,8 @@ import PublicProfileScreen from './screens/PublicProfileScreen';
 import ChatScreen from './screens/ChatScreen';
 import ConversationsScreen from './screens/ConversationsScreen';
 import RideDetailsScreen from './screens/RideDetailsScreen';
+import ForgotPasswordScreen from './screens/ForgotPasswordScreen';   // ← AJOUTÉ
+import ResetPasswordScreen from './screens/ResetPasswordScreen';     // ← AJOUTÉ
 import { SocketProvider } from './context/SocketContext';
 
 const Stack = createStackNavigator();
@@ -23,7 +26,6 @@ export default function App() {
 
   const updateUser = (userData) => {
     console.log('📱 App - Mise à jour utilisateur:', userData?.id);
-    console.log('📱 App - Nom utilisateur:', userData?.name);
     setUser(userData);
   };
 
@@ -38,6 +40,11 @@ export default function App() {
             {(props) => <LoginScreen {...props} updateUser={updateUser} />}
           </Stack.Screen>
           <Stack.Screen name="Register" component={RegisterScreen} options={{ title: 'Inscription', headerBackTitle: 'Retour' }} />
+          
+          {/* ✅ NOUVEAUX ÉCRANS POUR MOT DE PASSE OUBLIÉ */}
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} options={{ title: 'Mot de passe oublié', headerBackTitle: 'Retour' }} />
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} options={{ title: 'Nouveau mot de passe', headerBackTitle: 'Retour' }} />
+          
           <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ headerShown: false }} />
           <Stack.Screen name="PublishRide" component={PublishRideScreen} options={{ title: 'Publier un trajet', headerBackTitle: 'Retour' }} />
           <Stack.Screen name="Booking" component={BookingScreen} options={{ title: 'Réservation', headerBackTitle: 'Retour' }} />
@@ -48,6 +55,7 @@ export default function App() {
           <Stack.Screen name="Chat" component={ChatScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Conversations" component={ConversationsScreen} options={{ title: 'Messages', headerBackTitle: 'Retour' }} />
           <Stack.Screen name="RideDetails" component={RideDetailsScreen} options={{ title: 'Détails du trajet', headerBackTitle: 'Retour' }} />
+          <Stack.Screen name="RateRide" component={RateRideScreen} options={{ title: 'Noter un trajet', headerBackTitle: 'Retour' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </SocketProvider>
