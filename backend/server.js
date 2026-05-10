@@ -1426,12 +1426,6 @@ app.get('/api/payment/callback', async (req, res) => {
     }
 });
 
-// ============ ROUTE MOCK POUR TESTER LE CALLBACK (TEMPORAIRE) ============
-app.get('/api/payment/mock-callback', async (req, res) => {
-    const { ref } = req.query;
-    console.log('🎭 Route mock appelée avec ref:', ref);
-    res.redirect(`http://localhost:3000/api/payment/callback?tx_ref=${ref}&transaction_id=mock_${Date.now()}&status=successful`);
-});
 // ============ ROUTES MOT DE PASSE OUBLIÉ ============
 
 const crypto = require('crypto');
@@ -1471,8 +1465,8 @@ app.post('/api/auth/forgot-password', async (req, res) => {
             }
         });
         
-        // Créer le lien de réinitialisation
-        const resetUrl = `${process.env.APP_URL || 'http://localhost:8081'}/reset-password?token=${resetToken}`;
+        // ✅ CORRECTION : URL avec IP locale et format Expo
+        const resetUrl = `http://192.168.0.109:8081/--/reset-password?token=${resetToken}`;
         
         // Contenu de l'email
         const emailHtml = `
@@ -1587,7 +1581,6 @@ app.post('/api/auth/reset-password', async (req, res) => {
         res.status(500).json({ error: "Erreur lors de la réinitialisation" });
     }
 });
-
 // ============ DÉMARRER LE SERVEUR ============
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Serveur Auto-stop lancé sur http://0.0.0.0:${PORT}`);
