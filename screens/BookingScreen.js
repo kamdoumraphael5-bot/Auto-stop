@@ -5,8 +5,8 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Alert, ActivityIndicator
 } from 'react-native';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function BookingScreen({ route, navigation }) {
   const { ride, user, language = 'fr' } = route.params || {};
@@ -19,16 +19,14 @@ export default function BookingScreen({ route, navigation }) {
   const [idNumber, setIdNumber] = useState('');
   const [idExpiryDate, setIdExpiryDate] = useState('');
   const [amount, setAmount] = useState(ride?.price?.toString() || '');
-  const [selectedPaymentType, setSelectedPaymentType] = useState('mobile_money'); // 'mobile_money' ou 'card'
-  const [mobileMoneyNumber, setMobileMoneyNumber] = useState(''); // Numéro pour Mobile Money
+  const [selectedPaymentType, setSelectedPaymentType] = useState('mobile_money');
+  const [mobileMoneyNumber, setMobileMoneyNumber] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // 3 numéros de confiance
   const [trustedContact1, setTrustedContact1] = useState('');
   const [trustedContact2, setTrustedContact2] = useState('');
   const [trustedContact3, setTrustedContact3] = useState('');
   
-  // États pour la validation
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
@@ -230,7 +228,6 @@ export default function BookingScreen({ route, navigation }) {
     if (!validatePhone(trustedContact2)) newErrors.trustedContact2 = t.phoneInvalid;
     if (!validatePhone(trustedContact3)) newErrors.trustedContact3 = t.phoneInvalid;
     
-    // Validation pour Mobile Money
     if (selectedPaymentType === 'mobile_money' && !validatePhone(mobileMoneyNumber)) {
       newErrors.mobileMoneyNumber = t.phoneInvalid;
     }
@@ -248,7 +245,6 @@ export default function BookingScreen({ route, navigation }) {
     }
   };
 
-  // ============ FONCTION HANDLEBOOKING ============
   const handleBooking = async () => {
     if (!validateForm()) {
       Alert.alert(t.error, t.fillFields);
@@ -269,8 +265,8 @@ export default function BookingScreen({ route, navigation }) {
         return;
       }
 
-      // Initier le paiement
-      const paymentResponse = await fetch(`${API_URL}/api/payment/initiate`, {
+      // ✅ CORRIGÉ : Utilise config.API_URL au lieu de API_URL
+      const paymentResponse = await fetch(`${config.API_URL}/api/payment/initiate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +327,6 @@ export default function BookingScreen({ route, navigation }) {
     <ScrollView style={styles.container}>
       <Text style={styles.title}>📝 {t.title}</Text>
 
-      {/* Informations du trajet */}
       <View style={styles.rideInfoCard}>
         <Text style={styles.rideTitle}>🚗 {t.rideInfo}</Text>
         <Text style={styles.rideRoute}>
@@ -343,7 +338,6 @@ export default function BookingScreen({ route, navigation }) {
         <Text style={styles.ridePrice}>💰 {ride?.price?.toLocaleString()} FCFA</Text>
       </View>
 
-      {/* Informations du réservateur */}
       <Text style={styles.sectionTitle}>📝 {t.bookerInfo}</Text>
       
       <TextInput
@@ -370,7 +364,6 @@ export default function BookingScreen({ route, navigation }) {
       </View>
       {errors.bookerPhone && touched.bookerPhone && <Text style={styles.errorText}>{errors.bookerPhone}</Text>}
 
-      {/* Informations du voyageur */}
       <Text style={styles.sectionTitle}>👤 {t.travelerInfo}</Text>
 
       <TextInput
@@ -416,7 +409,6 @@ export default function BookingScreen({ route, navigation }) {
       />
       {errors.idExpiryDate && touched.idExpiryDate && <Text style={styles.errorText}>{errors.idExpiryDate}</Text>}
 
-      {/* 3 numéros de confiance */}
       <Text style={styles.sectionTitle}>🔐 {t.trustedContacts}</Text>
       <Text style={styles.helpText}>{t.trustedContactHelp}</Text>
 
@@ -465,7 +457,6 @@ export default function BookingScreen({ route, navigation }) {
       </View>
       {errors.trustedContact3 && touched.trustedContact3 && <Text style={styles.errorText}>{errors.trustedContact3}</Text>}
 
-      {/* Informations de paiement */}
       <Text style={styles.sectionTitle}>💳 {t.paymentInfo}</Text>
 
       <TextInput
@@ -478,7 +469,6 @@ export default function BookingScreen({ route, navigation }) {
       />
       {errors.amount && touched.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
 
-      {/* Sélection du moyen de paiement */}
       <View style={styles.paymentMethodContainer}>
         <TouchableOpacity 
           style={[styles.paymentMethodButton, selectedPaymentType === 'mobile_money' && styles.paymentMethodSelected]}
@@ -501,7 +491,6 @@ export default function BookingScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* Champ pour le numéro de Mobile Money (affiché seulement si Mobile Money est sélectionné) */}
       {selectedPaymentType === 'mobile_money' && (
         <View style={styles.mobileMoneyContainer}>
           <View style={styles.phoneCodeContainer}>
@@ -519,7 +508,6 @@ export default function BookingScreen({ route, navigation }) {
       )}
       {errors.mobileMoneyNumber && touched.mobileMoneyNumber && <Text style={styles.errorText}>{errors.mobileMoneyNumber}</Text>}
 
-      {/* Boutons */}
       <TouchableOpacity style={styles.confirmButton} onPress={handleBooking} disabled={loading}>
         {loading ? <ActivityIndicator color="white" /> : <Text style={styles.confirmButtonText}>{t.confirm}</Text>}
       </TouchableOpacity>
@@ -554,7 +542,6 @@ const styles = StyleSheet.create({
   confirmButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
   cancelButton: { backgroundColor: '#f0f0f0', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10, marginBottom: 30 },
   cancelButtonText: { color: '#FF5A5F', fontSize: 16, fontWeight: 'bold' },
-  
   paymentMethodContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',

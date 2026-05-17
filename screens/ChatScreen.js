@@ -6,8 +6,9 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSocket } from '../context/SocketContext';
+import config from '../config';
 
-const API_URL = 'http://192.168.0.109:3000';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function ChatScreen({ route, navigation }) {
   const { user, otherUser, ride, language = 'fr' } = route.params || {};
@@ -102,7 +103,8 @@ export default function ChatScreen({ route, navigation }) {
 
   const loadMessages = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/messages/${conversationId}`, {
+      // ✅ CORRIGÉ : Utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/messages/${conversationId}`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
       });
       const data = await response.json();
@@ -132,7 +134,6 @@ export default function ChatScreen({ route, navigation }) {
       type: 'text'
     };
     
-    // Créer un message temporaire pour l'affichage immédiat
     const tempMessage = {
       id: Date.now().toString(),
       conversationId,
@@ -146,12 +147,10 @@ export default function ChatScreen({ route, navigation }) {
       sender: { id: user.id, name: user.name, photoUrl: user.photoUrl }
     };
     
-    // Ajouter immédiatement le message à l'état local
     setMessages(prev => [...prev, tempMessage]);
     setInputText('');
     flatListRef.current?.scrollToEnd();
     
-    // Envoyer via socket
     emit('sendMessage', messageData);
   };
 
@@ -178,7 +177,8 @@ export default function ChatScreen({ route, navigation }) {
       formData.append('senderId', user.id);
       formData.append('receiverId', otherUser.id);
       
-      const response = await fetch(`${API_URL}/api/messages/send-file`, {
+      // ✅ CORRIGÉ : Utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/messages/send-file`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${user?.token}`,

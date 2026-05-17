@@ -3,8 +3,8 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Image, FlatList, Alert
 } from 'react-native';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function PublicProfileScreen({ route, navigation }) {
   const { userId, user: currentUser, language = 'fr' } = route.params || {};

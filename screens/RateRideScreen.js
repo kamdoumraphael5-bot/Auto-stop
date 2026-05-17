@@ -4,8 +4,8 @@ import {
   ScrollView, Alert, ActivityIndicator, TextInput
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function RateRideScreen({ route, navigation }) {
   const { rideId, driverName, language = 'fr' } = route.params || {};

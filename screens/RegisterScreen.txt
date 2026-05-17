@@ -1,0 +1,169 @@
+import React, { useState } from 'react';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet,
+  ScrollView, Alert, ActivityIndicator
+} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_URL = 'http://192.168.0.109:3000';
+
+export default function RegisterScreen({ route, navigation }) {
+  const { language = 'fr' } = route.params || {};
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const translations = {
+    fr: {
+      title: 'Inscription',
+      name: 'Nom complet',
+      email: 'Email',
+      phone: 'Téléphone',
+      password: 'Mot de passe',
+      confirmPassword: 'Confirmer le mot de passe',
+      register: "S'inscrire",
+      alreadyAccount: 'Déjà un compte ? Se connecter',
+      error: 'Erreur',
+      success: 'Inscription réussie',
+      passwordMismatch: 'Les mots de passe ne correspondent pas',
+      invalidEmail: 'Email invalide',
+      phoneRequired: 'Numéro de téléphone requis'
+    },
+    en: {
+      title: 'Sign up',
+      name: 'Full name',
+      email: 'Email',
+      phone: 'Phone number',
+      password: 'Password',
+      confirmPassword: 'Confirm password',
+      register: 'Sign up',
+      alreadyAccount: 'Already have an account? Login',
+      error: 'Error',
+      success: 'Registration successful',
+      passwordMismatch: 'Passwords do not match',
+      invalidEmail: 'Invalid email',
+      phoneRequired: 'Phone number required'
+    }
+  };
+
+  const t = translations[language];
+
+  const handleRegister = async () => {
+    if (!name || !email || !phone || !password) {
+      Alert.alert(t.error, 'Veuillez remplir tous les champs');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert(t.error, t.passwordMismatch);
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert(t.error, t.invalidEmail);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        Alert.alert(t.success, 'Votre compte a été créé avec succès !');
+        navigation.navigate('Login', { language });
+      } else {
+        Alert.alert(t.error, data.error || 'Erreur lors de l\'inscription');
+      }
+    } catch (error) {
+      console.error('Erreur inscription:', error);
+      Alert.alert(t.error, 'Connexion au serveur impossible');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>🚗 {t.title}</Text>
+
+        <TextInput
+          style={styles.input}
+          placeholder={t.name}
+          value={name}
+          onChangeText={setName}
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder={t.email}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
+
+        <TextInput
+          style={styles.input}
+          placeholder={t.phone}
+          value={phone}
+          onChangeText={setPhone}
+          keyboardType="phone-pad"
+        />
+
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder={t.password}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+            <Text>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+          </TouchableOpacity>
+        </View>
+
+        <TextInput
+          style={styles.input}
+          placeholder={t.confirmPassword}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry={!showPassword}
+        />
+
+        <TouchableOpacity style={styles.registerButton} onPress={handleRegister} disabled={loading}>
+          {loading ? <ActivityIndicator color="white" /> : <Text style={styles.registerButtonText}>{t.register}</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={() => navigation.navigate('Login', { language })}>
+          <Text style={styles.loginText}>{t.alreadyAccount}</Text>
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#fff' },
+  content: { padding: 20, paddingTop: 40 },
+  title: { fontSize: 32, fontWeight: 'bold', color: '#FF5A5F', textAlign: 'center', marginBottom: 40 },
+  input: { borderWidth: 1, borderColor: '#ddd', padding: 15, borderRadius: 10, marginBottom: 15, fontSize: 16, backgroundColor: '#f8f8f8' },
+  passwordContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 15 },
+  passwordInput: { flex: 1, borderWidth: 1, borderColor: '#ddd', padding: 15, borderRadius: 10, fontSize: 16, backgroundColor: '#f8f8f8', paddingRight: 50 },
+  eyeButton: { position: 'absolute', right: 15, padding: 10 },
+  registerButton: { backgroundColor: '#FF5A5F', padding: 16, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  registerButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+  loginText: { textAlign: 'center', color: '#FF5A5F', marginTop: 20, fontSize: 14 }
+});

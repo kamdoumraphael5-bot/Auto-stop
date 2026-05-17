@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
+import config from '../config';
 
 const SocketContext = createContext();
-const SOCKET_URL = 'http://192.168.0.109:3000';
 
 export const useSocket = () => useContext(SocketContext);
 
@@ -29,7 +29,8 @@ export const SocketProvider = ({ children, user }) => {
     }
 
     console.log('🔌 Socket: Connexion pour utilisateur', user.id);
-    const newSocket = io(SOCKET_URL, {
+    // Utilisation de config.API_URL au lieu de SOCKET_URL en dur
+    const newSocket = io(config.API_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,

@@ -4,8 +4,8 @@ import {
   StyleSheet, ActivityIndicator, RefreshControl, Image
 } from 'react-native';
 import { useSocket } from '../context/SocketContext';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function ConversationsScreen({ route, navigation }) {
   const { user, language = 'fr' } = route.params || {};
@@ -60,7 +60,8 @@ export default function ConversationsScreen({ route, navigation }) {
 
   const fetchConversations = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/conversations`, {
+      // ✅ CORRIGÉ : Utilise config.API_URL au lieu de API_URL
+      const response = await fetch(`${config.API_URL}/api/conversations`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
       });
       const data = await response.json();

@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RideCard from '../components/RideCard';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function SearchRideScreen({ route, navigation }) {
   const { user, language = 'fr' } = route.params || {};

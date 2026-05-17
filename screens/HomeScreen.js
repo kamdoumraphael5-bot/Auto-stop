@@ -5,8 +5,9 @@ import {
 } from 'react-native';
 import CountryFlag from 'react-native-country-flag';
 import RideCard from '../components/RideCard';
+import config from '../config';
 
-const API_URL = 'http://192.168.0.109:3000';
+// const API_URL = 'http://192.168.0.109:3000'; // Supprimé
 
 export default function HomeScreen({ route, navigation }) {
   const { user, language = 'fr', updateUser } = route.params || {};
@@ -92,13 +93,13 @@ export default function HomeScreen({ route, navigation }) {
 
   const fetchRides = async () => {
     try {
-      console.log('📡 Appel API:', `${API_URL}/api/rides`);
-      const response = await fetch(`${API_URL}/api/rides`);
+      // ✅ CORRIGÉ: Utilise config.API_URL
+      console.log('📡 Appel API:', `${config.API_URL}/api/rides`);
+      const response = await fetch(`${config.API_URL}/api/rides`);
       const data = await response.json();
       console.log('📋 Données reçues:', data);
       console.log('📋 Type de données:', typeof data);
       
-      // Vérifier que data.rides existe et est un tableau
       if (data && data.rides && Array.isArray(data.rides)) {
         console.log('📋 Nombre de trajets:', data.rides.length);
         setRides(data.rides);
@@ -122,8 +123,9 @@ export default function HomeScreen({ route, navigation }) {
     }
     
     try {
-      console.log('📡 Appel API compteur:', `${API_URL}/api/messages/unread/total`);
-      const response = await fetch(`${API_URL}/api/messages/unread/total`, {
+      // ✅ CORRIGÉ: Utilise config.API_URL
+      console.log('📡 Appel API compteur:', `${config.API_URL}/api/messages/unread/total`);
+      const response = await fetch(`${config.API_URL}/api/messages/unread/total`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
       });
       const data = await response.json();
@@ -426,5 +428,10 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

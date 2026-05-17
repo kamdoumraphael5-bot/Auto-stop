@@ -3,8 +3,9 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
+import config from '../config';  // ← AJOUTÉ
 
-const API_URL = 'http://192.168.0.109:3000';
+// SUPPRIMÉ : const API_URL = 'http://192.168.0.109:3000';
 
 export default function LoginScreen({ navigation, updateUser }) {
   const [email, setEmail] = useState('');
@@ -69,7 +70,8 @@ export default function LoginScreen({ navigation, updateUser }) {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/login`, {
+      // ✅ CORRIGÉ : Utilise config.API_URL au lieu de l'URL en dur
+      const response = await fetch(`${config.API_URL}/api/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -131,7 +133,6 @@ export default function LoginScreen({ navigation, updateUser }) {
           </TouchableOpacity>
         </View>
 
-        {/* ✅ CORRECTION : Navigation vers ForgotPasswordScreen */}
         <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
           <Text style={styles.forgotText}>{t.forgotPassword}</Text>
         </TouchableOpacity>

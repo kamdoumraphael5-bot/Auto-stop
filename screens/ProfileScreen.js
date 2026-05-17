@@ -4,8 +4,8 @@ import {
   ScrollView, Alert, ActivityIndicator, Image, Modal, FlatList
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function ProfileScreen({ route, navigation }) {
   const { user, language = 'fr' } = route.params || {};

@@ -4,8 +4,8 @@ import {
   FlatList, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { useSocket } from '../context/SocketContext';
-
-const API_URL = 'http://192.168.0.109:3000';
+import config from '../config';
+//const API_URL = 'http://192.168.0.109:3000';
 
 export default function MyRidesScreen({ route, navigation }) {
   const { user, language = 'fr' } = route.params || {};
@@ -139,9 +139,10 @@ export default function MyRidesScreen({ route, navigation }) {
 
   const fetchRides = async () => {
     try {
+      // ✅ CORRIGÉ : Utilise config.API_URL
       const endpoint = activeTab === 'published' 
-        ? `${API_URL}/api/rides/my-published`
-        : `${API_URL}/api/rides/my-bookings`;
+        ? `${config.API_URL}/api/rides/my-published`
+        : `${config.API_URL}/api/rides/my-bookings`;
       
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
@@ -170,7 +171,8 @@ export default function MyRidesScreen({ route, navigation }) {
           if (passengerId) {
             const conversationId = `user_${user?.id}_${passengerId}`;
             try {
-              const response = await fetch(`${API_URL}/api/messages/unread/${conversationId}`, {
+              // ✅ CORRIGÉ : Utilise config.API_URL
+              const response = await fetch(`${config.API_URL}/api/messages/unread/${conversationId}`, {
                 headers: { 'Authorization': `Bearer ${user?.token}` }
               });
               const data = await response.json();
@@ -217,7 +219,8 @@ export default function MyRidesScreen({ route, navigation }) {
           text: t.yes, 
           onPress: async () => {
             try {
-              const response = await fetch(`${API_URL}/api/bookings/${bookingId}/cancel`, {
+              // ✅ CORRIGÉ : Utilise config.API_URL
+              const response = await fetch(`${config.API_URL}/api/bookings/${bookingId}/cancel`, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': 'application/json',
@@ -255,7 +258,8 @@ export default function MyRidesScreen({ route, navigation }) {
           text: t.yes, 
           onPress: async () => {
             try {
-              const response = await fetch(`${API_URL}/api/rides/${ride.id}/visibility`, {
+              // ✅ CORRIGÉ : Utilise config.API_URL
+              const response = await fetch(`${config.API_URL}/api/rides/${ride.id}/visibility`, {
                 method: 'PUT',
                 headers: {
                   'Content-Type': 'application/json',
@@ -382,7 +386,6 @@ export default function MyRidesScreen({ route, navigation }) {
   const renderBookedRide = ({ item }) => {
     console.log('🔍 Réservation:', { id: item.id, bookingId: item.bookingId, status: item.bookingStatus });
     
-    // Vérifier si le trajet est terminé et peut être noté
     const isCompleted = new Date(item.date) < new Date();
     const canRate = isCompleted && item.bookingStatus === 'CONFIRMED';
     

@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "AutoStop",
     "slug": "autostop",
@@ -7,7 +7,14 @@
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.autostop.app",
-      "permissions": ["INTERNET"]
+      "permissions": [
+        "INTERNET"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e6b55ccf-97f1-4e42-8101-648572541cd3"
+      }
     }
   }
 }
