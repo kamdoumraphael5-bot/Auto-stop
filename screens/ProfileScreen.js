@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import config from '../config';
-//const API_URL = 'http://192.168.0.109:3000';
+// const API_URL = 'http://192.168.0.109:3000';
 
 export default function ProfileScreen({ route, navigation }) {
   const { user, language = 'fr' } = route.params || {};
@@ -14,6 +14,10 @@ export default function ProfileScreen({ route, navigation }) {
   const [editMode, setEditMode] = useState(false);
   const [reviews, setReviews] = useState([]);
   const [showReviews, setShowReviews] = useState(false);
+  
+  // Telegram states
+  const [telegramLinked, setTelegramLinked] = useState(false);
+  const [telegramChatId, setTelegramChatId] = useState('');
   
   // Formulaire modification
   const [bio, setBio] = useState('');
@@ -61,7 +65,12 @@ export default function ProfileScreen({ route, navigation }) {
       updatePhoto: 'Changer la photo',
       takePhoto: 'Prendre une photo',
       chooseGallery: 'Choisir dans la galerie',
-      cancelAction: 'Annuler'
+      cancelAction: 'Annuler',
+      telegram: 'Telegram',
+      telegramSubtitle: 'Recevez vos notifications sur Telegram',
+      linkTelegram: 'Lier Telegram',
+      unlinkTelegram: 'Dissocier',
+      telegramLinked: 'Telegram lié'
     },
     en: {
       title: 'My profile',
@@ -101,7 +110,12 @@ export default function ProfileScreen({ route, navigation }) {
       updatePhoto: 'Change photo',
       takePhoto: 'Take a photo',
       chooseGallery: 'Choose from gallery',
-      cancelAction: 'Cancel'
+      cancelAction: 'Cancel',
+      telegram: 'Telegram',
+      telegramSubtitle: 'Receive your notifications on Telegram',
+      linkTelegram: 'Link Telegram',
+      unlinkTelegram: 'Unlink',
+      telegramLinked: 'Telegram linked'
     },
     es: {
       title: 'Mi perfil',
@@ -141,7 +155,12 @@ export default function ProfileScreen({ route, navigation }) {
       updatePhoto: 'Cambiar foto',
       takePhoto: 'Tomar foto',
       chooseGallery: 'Elegir de galería',
-      cancelAction: 'Cancelar'
+      cancelAction: 'Cancelar',
+      telegram: 'Telegram',
+      telegramSubtitle: 'Recibe tus notificaciones en Telegram',
+      linkTelegram: 'Vincular Telegram',
+      unlinkTelegram: 'Desvincular',
+      telegramLinked: 'Telegram vinculado'
     },
     pt: {
       title: 'Meu perfil',
@@ -181,7 +200,12 @@ export default function ProfileScreen({ route, navigation }) {
       updatePhoto: 'Mudar foto',
       takePhoto: 'Tirar foto',
       chooseGallery: 'Escolher da galeria',
-      cancelAction: 'Cancelar'
+      cancelAction: 'Cancelar',
+      telegram: 'Telegram',
+      telegramSubtitle: 'Receba suas notificações no Telegram',
+      linkTelegram: 'Vincular Telegram',
+      unlinkTelegram: 'Desvincular',
+      telegramLinked: 'Telegram vinculado'
     }
   };
 
@@ -190,11 +214,13 @@ export default function ProfileScreen({ route, navigation }) {
   useEffect(() => {
     fetchProfile();
     fetchReviews();
+    checkTelegramStatus();
   }, []);
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/users/profile`, {
+      // ✅ CORRIGÉ: utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/users/profile`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
       });
       const data = await response.json();
@@ -212,12 +238,108 @@ export default function ProfileScreen({ route, navigation }) {
 
   const fetchReviews = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/users/${user?.id}/reviews`);
+      // ✅ CORRIGÉ: utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/users/${user?.id}/reviews`);
       const data = await response.json();
       setReviews(data.reviews || []);
     } catch (error) {
       console.error('Erreur:', error);
     }
+  };
+
+  const checkTelegramStatus = async () => {
+    try {
+      const response = await fetch(`${config.API_URL}/api/users/telegram-id`, {
+        headers: { 'Authorization': `Bearer ${user?.token}` }
+      });
+      const data = await response.json();
+      if (data.telegramChatId) {
+        setTelegramLinked(true);
+        setTelegramChatId(data.telegramChatId);
+      }
+    } catch (error) {
+      console.error('Erreur vérification Telegram:', error);
+    }
+  };
+
+  const linkTelegram = () => {
+    Alert.prompt(
+      t.linkTelegram,
+      language === 'fr' ? '1. Envoyez /start à @Autoostopbot sur Telegram\n2. Entrez votre ID Telegram ci-dessous :' :
+      language === 'en' ? '1. Send /start to @Autoostopbot on Telegram\n2. Enter your Telegram ID below:' :
+      language === 'es' ? '1. Envía /start a @Autoostopbot en Telegram\n2. Ingresa tu ID de Telegram a continuación:' :
+      '1. Envie /start para @Autoostopbot no Telegram\n2. Digite seu ID do Telegram abaixo:',
+      [
+        { text: t.cancelAction, style: 'cancel' },
+        { 
+          text: t.linkTelegram, 
+          onPress: async (chatId) => {
+            if (!chatId || chatId.trim() === '') {
+              Alert.alert(t.error, language === 'fr' ? 'ID Telegram invalide' : 'Invalid Telegram ID');
+              return;
+            }
+            
+            try {
+              const response = await fetch(`${config.API_URL}/api/users/link-telegram`, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${user?.token}` 
+                },
+                body: JSON.stringify({ telegramChatId: chatId.trim() })
+              });
+              
+              const data = await response.json();
+              
+              if (response.ok) {
+                Alert.alert('Succès', t.telegramLinked);
+                setTelegramLinked(true);
+                setTelegramChatId(chatId.trim());
+              } else {
+                Alert.alert('Erreur', data.error || 'Impossible de lier Telegram');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Connexion au serveur impossible');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const unlinkTelegram = () => {
+    Alert.alert(
+      t.unlinkTelegram,
+      language === 'fr' ? 'Voulez-vous vraiment dissocier votre compte Telegram ?' :
+      language === 'en' ? 'Do you really want to unlink your Telegram account?' :
+      language === 'es' ? '¿Realmente quieres desvincular tu cuenta de Telegram?' :
+      'Deseja realmente desvincular sua conta do Telegram?',
+      [
+        { text: t.cancelAction, style: 'cancel' },
+        { 
+          text: t.unlinkTelegram, 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await fetch(`${config.API_URL}/api/users/unlink-telegram`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${user?.token}` }
+              });
+              
+              if (response.ok) {
+                Alert.alert('Succès', 'Telegram dissocié');
+                setTelegramLinked(false);
+                setTelegramChatId('');
+              } else {
+                Alert.alert('Erreur', 'Impossible de dissocier Telegram');
+              }
+            } catch (error) {
+              Alert.alert('Erreur', 'Connexion au serveur impossible');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const takePhoto = async () => {
@@ -266,7 +388,8 @@ export default function ProfileScreen({ route, navigation }) {
     });
     
     try {
-      const response = await fetch(`${API_URL}/api/users/upload-photo`, {
+      // ✅ CORRIGÉ: utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/users/upload-photo`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${user?.token}`,
@@ -292,7 +415,8 @@ export default function ProfileScreen({ route, navigation }) {
   const handleUpdateProfile = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/users/profile`, {
+      // ✅ CORRIGÉ: utilise config.API_URL
+      const response = await fetch(`${config.API_URL}/api/users/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -473,6 +597,25 @@ export default function ProfileScreen({ route, navigation }) {
               keyboardType="default"
             />
           </View>
+        )}
+      </View>
+
+      {/* SECTION TELEGRAM */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>🤖 {t.telegram}</Text>
+        <Text style={styles.sectionSubtitle}>{t.telegramSubtitle}</Text>
+        
+        {telegramLinked ? (
+          <View style={styles.linkedContainer}>
+            <Text style={styles.linkedText}>✅ {t.telegramLinked}</Text>
+            <TouchableOpacity style={styles.unlinkButton} onPress={unlinkTelegram}>
+              <Text style={styles.unlinkButtonText}>{t.unlinkTelegram}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.telegramButton} onPress={linkTelegram}>
+            <Text style={styles.telegramButtonText}>🤖 {t.linkTelegram}</Text>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -767,6 +910,11 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 10,
   },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 15,
+  },
   sectionText: {
     fontSize: 14,
     color: '#666',
@@ -918,5 +1066,42 @@ const styles = StyleSheet.create({
   reviewComment: {
     fontSize: 13,
     color: '#666',
+  },
+  // Styles Telegram
+  telegramButton: {
+    backgroundColor: '#26A5E4',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  telegramButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  linkedContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 12,
+    borderRadius: 10,
+  },
+  linkedText: {
+    color: '#2E7D32',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  unlinkButton: {
+    backgroundColor: '#F44336',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  unlinkButtonText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import CountryFlag from 'react-native-country-flag';
 import RideCard from '../components/RideCard';
+import NotificationBell from '../components/NotificationBell'; // ← AJOUTÉ
 import config from '../config';
 
 // const API_URL = 'http://192.168.0.109:3000'; // Supprimé
@@ -93,7 +94,6 @@ export default function HomeScreen({ route, navigation }) {
 
   const fetchRides = async () => {
     try {
-      // ✅ CORRIGÉ: Utilise config.API_URL
       console.log('📡 Appel API:', `${config.API_URL}/api/rides`);
       const response = await fetch(`${config.API_URL}/api/rides`);
       const data = await response.json();
@@ -123,7 +123,6 @@ export default function HomeScreen({ route, navigation }) {
     }
     
     try {
-      // ✅ CORRIGÉ: Utilise config.API_URL
       console.log('📡 Appel API compteur:', `${config.API_URL}/api/messages/unread/total`);
       const response = await fetch(`${config.API_URL}/api/messages/unread/total`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
@@ -226,20 +225,25 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.header} onPress={() => navigation.navigate('Profile', { user, language })}>
-        {user?.photoUrl ? (
-          <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
-        ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>👤</Text>
-          </View>
-        )}
+      {/* HEADER MODIFIÉ AVEC LA CLOCHE DE NOTIFICATIONS */}
+      <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>{t.welcome} 👋</Text>
           <Text style={styles.userName}>{user?.name || 'Invité'}</Text>
         </View>
-        <Text style={styles.editIcon}>✎</Text>
-      </TouchableOpacity>
+        <View style={styles.headerIcons}>
+          <NotificationBell user={user} navigation={navigation} />
+          <TouchableOpacity onPress={() => navigation.navigate('Profile', { user, language })}>
+            {user?.photoUrl ? (
+              <Image source={{ uri: user.photoUrl }} style={styles.avatar} />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarText}>👤</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <View style={styles.ridesContainer}>
         <Text style={styles.sectionTitle}>{t.availableRides}</Text>
@@ -324,36 +328,35 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between', // ← MODIFIÉ pour espacement
     backgroundColor: '#FF5A5F',
     padding: 20,
     paddingTop: 50,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
   },
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15, // Espace entre la cloche et l'avatar
+  },
   avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 15,
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
     borderWidth: 2,
     borderColor: 'white',
   },
   avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
     backgroundColor: 'rgba(255,255,255,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 15,
   },
   avatarText: {
-    fontSize: 25,
-  },
-  editIcon: {
-    marginLeft: 'auto',
-    fontSize: 18,
-    color: 'white',
+    fontSize: 22,
   },
   welcomeText: {
     fontSize: 14,

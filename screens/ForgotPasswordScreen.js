@@ -1,80 +1,208 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator
+  Alert, ActivityIndicator, KeyboardAvoidingView, Platform
 } from 'react-native';
 import config from '../config';
-//const API_URL = 'http://192.168.0.109:3000';
 
-export default function ForgotPasswordScreen({ navigation }) {
+export default function ForgotPasswordScreen({ navigation, route }) {
+  const { language = 'fr' } = route.params || {};
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSendLink = async () => {
+  const translations = {
+    fr: {
+      title: 'Mot de passe oublié',
+      subtitle: 'Entrez votre email pour recevoir un code de réinitialisation',
+      email: 'Email',
+      send: 'Envoyer le code',
+      back: 'Retour à la connexion',
+      sending: 'Envoi en cours...',
+      success: 'Code envoyé',
+      success_message: 'Un code de vérification a été envoyé à votre email.',
+      error: 'Erreur',
+      invalid_email: 'Veuillez entrer un email valide'
+    },
+    en: {
+      title: 'Forgot password',
+      subtitle: 'Enter your email to receive a reset code',
+      email: 'Email',
+      send: 'Send code',
+      back: 'Back to login',
+      sending: 'Sending...',
+      success: 'Code sent',
+      success_message: 'A verification code has been sent to your email.',
+      error: 'Error',
+      invalid_email: 'Please enter a valid email'
+    },
+    es: {
+      title: 'Olvidé mi contraseña',
+      subtitle: 'Ingrese su email para recibir un código',
+      email: 'Email',
+      send: 'Enviar código',
+      back: 'Volver al inicio',
+      sending: 'Enviando...',
+      success: 'Código enviado',
+      success_message: 'Se ha enviado un código a su email.',
+      error: 'Error',
+      invalid_email: 'Ingrese un email válido'
+    },
+    pt: {
+      title: 'Esqueci a senha',
+      subtitle: 'Digite seu email para receber um código',
+      email: 'Email',
+      send: 'Enviar código',
+      back: 'Voltar ao login',
+      sending: 'Enviando...',
+      success: 'Código enviado',
+      success_message: 'Um código foi enviado para seu email.',
+      error: 'Erro',
+      invalid_email: 'Digite um email válido'
+    }
+  };
+
+  const t = translations[language];
+
+  const validateEmail = (email) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
+  const handleSendCode = async () => {
     if (!email) {
-      Alert.alert('Erreur', 'Veuillez entrer votre email');
+      Alert.alert(t.error, t.invalid_email);
+      return;
+    }
+
+    if (!validateEmail(email)) {
+      Alert.alert(t.error, t.invalid_email);
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+      const response = await fetch(`${config.API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, language }),
       });
 
       const data = await response.json();
 
       if (response.ok || data.success) {
-        Alert.alert(
-          'Email envoyé',
-          'Consultez votre boîte mail pour réinitialiser votre mot de passe',
-          [{ text: 'OK', onPress: () => navigation.navigate('Login') }]
-        );
+        Alert.alert(t.success, t.success_message, [
+          { 
+            text: 'OK', 
+            onPress: () => navigation.navigate('ResetPasswordWithOtp', { email, language })
+          }
+        ]);
       } else {
-        Alert.alert('Erreur', data.error || 'Une erreur est survenue');
+        Alert.alert(t.error, data.error || 'Une erreur est survenue');
       }
     } catch (error) {
-      Alert.alert('Erreur', 'Connexion au serveur impossible');
+      console.error('Erreur:', error);
+      Alert.alert(t.error, 'Connexion au serveur impossible');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>🔐 Mot de passe oublié</Text>
-      <Text style={styles.subtitle}>
-        Entrez votre email, nous vous enverrons un lien pour réinitialiser votre mot de passe
-      </Text>
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={styles.container}
+    >
+      <View style={styles.content}>
+        <Text style={styles.title}>🔐 {t.title}</Text>
+        <Text style={styles.subtitle}>{t.subtitle}</Text>
 
-      <TextInput
-        style={styles.input}
-        placeholder="votre@email.com"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+        <TextInput
+          style={styles.input}
+          placeholder={t.email}
+          placeholderTextColor="#999"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          editable={!loading}
+        />
 
-      <TouchableOpacity style={styles.button} onPress={handleSendLink} disabled={loading}>
-        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Envoyer le lien</Text>}
-      </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.sendButton, loading && styles.disabledButton]} 
+          onPress={handleSendCode}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text style={styles.sendButtonText}>{t.send}</Text>
+          )}
+        </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.backText}>Retour à la connexion</Text>
-      </TouchableOpacity>
-    </ScrollView>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => navigation.navigate('Login')}
+        >
+          <Text style={styles.backButtonText}>{t.back}</Text>
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff', padding: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#FF5A5F', textAlign: 'center', marginTop: 40, marginBottom: 20 },
-  subtitle: { fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 40 },
-  input: { borderWidth: 1, borderColor: '#ddd', padding: 15, borderRadius: 10, marginBottom: 20, fontSize: 16, backgroundColor: '#f8f8f8' },
-  button: { backgroundColor: '#FF5A5F', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
-  buttonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
-  backText: { color: '#FF5A5F', fontSize: 16, textAlign: 'center', marginTop: 20 }
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FF5A5F',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 30,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    fontSize: 16,
+    backgroundColor: '#f8f8f8',
+  },
+  sendButton: {
+    backgroundColor: '#FF5A5F',
+    padding: 16,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  sendButtonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
+  },
+  backButton: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  backButtonText: {
+    color: '#FF5A5F',
+    fontSize: 14,
+  },
 });
