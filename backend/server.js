@@ -9,6 +9,7 @@ const path = require('path');
 const fs = require('fs');
 const http = require('http');
 const socketIo = require('socket.io');
+const suggestionService = require('./services/suggestionService');
 require('dotenv').config();
 
 // ============ IMPORTS DES SERVICES ============
@@ -1312,19 +1313,35 @@ app.get('/api/rides', async (req, res) => {
     }
 });
 
-// RECHERCHE DYNAMIQUE - Version optimisée (À mettre AVANT /api/rides/:id)
+// RECHERCHE DYNAMIQUE AVEC TRI
 app.get('/api/rides/dynamic-search', async (req, res) => {
     try {
-        let { departure = '', destination = '', date, minPrice, maxPrice } = req.query;
+        let { 
+            departure = '', 
+            destination = '', 
+            date, 
+            minPrice, 
+            maxPrice,
+            sortBy = 'date',      // date, price, duration
+            sortOrder = 'asc'      // asc, desc
+        } = req.query;
         
-        console.log('🔍 Recherche reçue:', { departure, destination, date, minPrice, maxPrice });
+        console.log('🔍 Recherche reçue:', { departure, destination, sortBy, sortOrder });
         
+        // 🔥 CORRECTION DES FAUTES D'ORTHOGRAPHE 🔥
+        const corrected = await suggestionService.searchRidesWithTolerance(prisma, departure, destination);
+        
+        const searchDeparture = corrected.bestDeparture;
+        const searchDestination = corrected.bestDestination;
+        
+        // Construction du where clause
         const whereClause = {
             status: 'SCHEDULED',
             isHidden: false,
             date: { gte: new Date() }
         };
         
+        // Filtrage par date spécifique
         if (date) {
             const searchDate = new Date(date);
             const nextDay = new Date(searchDate);
@@ -1335,24 +1352,42 @@ app.get('/api/rides/dynamic-search', async (req, res) => {
             };
         }
         
+        // Filtrage par prix
         if (minPrice || maxPrice) {
             whereClause.price = {};
             if (minPrice) whereClause.price.gte = parseFloat(minPrice);
             if (maxPrice) whereClause.price.lte = parseFloat(maxPrice);
         }
         
-        if (departure && departure.trim() !== '') {
+        // Recherche avec la ville corrigée
+        if (searchDeparture && searchDeparture !== '') {
             whereClause.departure = {
-                contains: departure.trim(),
+                contains: searchDeparture,
                 mode: 'insensitive'
             };
         }
         
-        if (destination && destination.trim() !== '') {
+        if (searchDestination && searchDestination !== '') {
             whereClause.destination = {
-                contains: destination.trim(),
+                contains: searchDestination,
                 mode: 'insensitive'
             };
+        }
+        
+        // Construction de l'ordre de tri
+        let orderBy = {};
+        switch (sortBy) {
+            case 'date':
+                orderBy = { date: sortOrder === 'asc' ? 'asc' : 'desc' };
+                break;
+            case 'price':
+                orderBy = { price: sortOrder === 'asc' ? 'asc' : 'desc' };
+                break;
+            case 'duration':
+                orderBy = { estimatedDuration: sortOrder === 'asc' ? 'asc' : 'desc' };
+                break;
+            default:
+                orderBy = { date: 'asc' };
         }
         
         const rides = await prisma.ride.findMany({
@@ -1372,24 +1407,41 @@ app.get('/api/rides/dynamic-search', async (req, res) => {
                     select: { seats: true }
                 }
             },
-            orderBy: { date: 'asc' }
+            orderBy: orderBy  // ← Application du tri
         });
         
+        // Ajouter les statistiques de places
         const ridesWithStats = rides.map(ride => {
             const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
             return {
                 ...ride,
                 totalSeats: ride.totalSeats || ride.availableSeats + totalBookedSeats,
                 availableSeats: ride.availableSeats,
-                bookedSeats: totalBookedSeats
+                bookedSeats: totalBookedSeats,
+                searchCorrected: {
+                    departure: searchDeparture !== departure,
+                    destination: searchDestination !== destination,
+                    originalDeparture: departure,
+                    originalDestination: destination,
+                    correctedDeparture: searchDeparture,
+                    correctedDestination: searchDestination
+                }
             };
         });
         
-        console.log(`📊 ${ridesWithStats.length} trajets trouvés`);
+        console.log(`📊 ${ridesWithStats.length} trajets trouvés - Trié par ${sortBy} (${sortOrder})`);
+        
         res.json({ 
             success: true,
             count: ridesWithStats.length,
-            rides: ridesWithStats 
+            rides: ridesWithStats,
+            sort: { sortBy, sortOrder },
+            corrected: {
+                departure: searchDeparture !== departure,
+                destination: searchDestination !== destination,
+                original: { departure, destination },
+                corrected: { departure: searchDeparture, destination: searchDestination }
+            }
         });
         
     } catch (error) {
@@ -1503,57 +1555,49 @@ app.get('/api/rides/rateable', verifyToken, async (req, res) => {
     }
 });
 
-// Auto-complétion départs
+// ============ ROUTES AUTOCOMPLÉTION AVEC CORRECTION D'ORTHOGRAPHE ============
+
+// Obtenir les villes de départ avec correction des fautes
 app.get('/api/rides/autocomplete/departures', async (req, res) => {
     try {
         const { query = '' } = req.query;
         
-        const rides = await prisma.ride.findMany({
-            where: {
-                status: 'SCHEDULED',
-                date: { gte: new Date() },
-                isHidden: false,
-                departure: {
-                    contains: query,
-                    mode: 'insensitive'
-                }
-            },
-            select: { departure: true },
-            distinct: ['departure'],
-            take: 10
-        });
+        if (!query || query.length < 2) {
+            return res.json({ suggestions: [] });
+        }
         
-        res.json({ suggestions: rides.map(r => r.departure) });
+        const suggestions = await suggestionService.getSuggestions(prisma, query, 'departure', 10);
+        res.json({ suggestions });
+        
     } catch (error) {
-        console.error('Erreur autocomplete départ:', error);
+        console.error('❌ Erreur autocomplete départ:', error);
         res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
-// Auto-complétion destinations
+// Obtenir les villes d'arrivée avec correction des fautes
 app.get('/api/rides/autocomplete/destinations', async (req, res) => {
     try {
         const { query = '', departure = '' } = req.query;
         
-        const rides = await prisma.ride.findMany({
-            where: {
-                status: 'SCHEDULED',
-                date: { gte: new Date() },
-                isHidden: false,
-                departure: departure ? { contains: departure, mode: 'insensitive' } : undefined,
-                destination: {
-                    contains: query,
-                    mode: 'insensitive'
-                }
-            },
-            select: { destination: true },
-            distinct: ['destination'],
-            take: 10
-        });
+        if (!query || query.length < 2) {
+            return res.json({ suggestions: [] });
+        }
         
-        res.json({ suggestions: rides.map(r => r.destination) });
+        let suggestions = await suggestionService.getSuggestions(prisma, query, 'destination', 10);
+        
+        // Si un départ est spécifié, on peut filtrer les destinations pertinentes
+        if (departure) {
+            const departureNormalized = suggestionService.normalizeCity(departure);
+            suggestions = suggestions.filter(dest => 
+                suggestionService.normalizeCity(dest) !== departureNormalized
+            );
+        }
+        
+        res.json({ suggestions });
+        
     } catch (error) {
-        console.error('Erreur autocomplete destination:', error);
+        console.error('❌ Erreur autocomplete destination:', error);
         res.status(500).json({ error: 'Erreur serveur' });
     }
 });
