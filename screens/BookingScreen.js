@@ -23,6 +23,13 @@ export default function BookingScreen({ route, navigation }) {
   const [mobileMoneyNumber, setMobileMoneyNumber] = useState('');
   const [loading, setLoading] = useState(false);
   
+  // ========== NOUVEAUX STATES POUR L'AFFICHAGE HYBRIDE ==========
+  const [onlinePercent, setOnlinePercent] = useState(ride?.onlinePercent || 25);
+  const [onlineAmount, setOnlineAmount] = useState(0);
+  const [cashAmount, setCashAmount] = useState(0);
+  const [displayCurrency, setDisplayCurrency] = useState(ride?.displayCurrency || 'XAF');
+  // ==============================================================
+  
   const [trustedContact1, setTrustedContact1] = useState('');
   const [trustedContact2, setTrustedContact2] = useState('');
   const [trustedContact3, setTrustedContact3] = useState('');
@@ -42,6 +49,18 @@ export default function BookingScreen({ route, navigation }) {
 
   const [phoneCode, setPhoneCode] = useState(getDefaultPhoneCode());
 
+  // ========== CALCUL DES MONTANTS AU CHARGEMENT ==========
+  React.useEffect(() => {
+    if (ride?.price) {
+      const price = parseFloat(ride.price);
+      const online = (price * (onlinePercent / 100)).toFixed(0);
+      const cash = price - online;
+      setOnlineAmount(online);
+      setCashAmount(cash);
+      setAmount(online.toString());
+    }
+  }, [ride?.price, onlinePercent]);
+
   const translations = {
     fr: {
       title: 'Réservation',
@@ -57,13 +76,19 @@ export default function BookingScreen({ route, navigation }) {
       idNumber: 'Numéro CNI / Passeport',
       idExpiryDate: "Date d'expiration",
       paymentInfo: 'Informations de paiement',
-      amount: 'Somme à payer (FCFA)',
+      amount: 'Montant à payer en ligne (FCFA)',
       paymentMethod: 'Moyen de paiement',
       mobileMoney: '📱 Mobile Money',
       mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
       mobileMoneyPlaceholder: 'Votre numéro de paiement (ex: 6XXXXXXXX)',
       card: '💳 Carte bancaire',
       cardDesc: 'Visa, Mastercard',
+      // ========== NOUVELLES TRADUCTIONS ==========
+      paymentBreakdown: '💰 Détail du paiement',
+      onlinePayment: '💻 Paiement en ligne',
+      cashPayment: '💵 À payer en espèces au conducteur',
+      currencyXAF: 'FCFA',
+      // ==========================================
       trustedContacts: 'Contacts de confiance (3 numéros)',
       trustedContactHelp: 'Ces numéros seront utilisés pour les alertes de sécurité',
       contact1: '1er numéro de confiance',
@@ -93,13 +118,17 @@ export default function BookingScreen({ route, navigation }) {
       idNumber: 'ID / Passport number',
       idExpiryDate: 'Expiry date',
       paymentInfo: 'Payment information',
-      amount: 'Amount (FCFA)',
+      amount: 'Online payment amount (FCFA)',
       paymentMethod: 'Payment method',
       mobileMoney: '📱 Mobile Money',
       mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
       mobileMoneyPlaceholder: 'Your payment number (ex: 6XXXXXXXX)',
       card: '💳 Card',
       cardDesc: 'Visa, Mastercard',
+      paymentBreakdown: '💰 Payment breakdown',
+      onlinePayment: '💻 Online payment',
+      cashPayment: '💵 Cash payment to driver',
+      currencyXAF: 'FCFA',
       trustedContacts: 'Trusted contacts (3 numbers)',
       trustedContactHelp: 'These numbers will be used for security alerts',
       contact1: '1st trusted number',
@@ -129,13 +158,17 @@ export default function BookingScreen({ route, navigation }) {
       idNumber: 'Nº CI / Pasaporte',
       idExpiryDate: 'Fecha de expiración',
       paymentInfo: 'Información de pago',
-      amount: 'Monto (FCFA)',
+      amount: 'Monto a pagar en línea (FCFA)',
       paymentMethod: 'Método de pago',
       mobileMoney: '📱 Dinero móvil',
       mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
       mobileMoneyPlaceholder: 'Su número de pago (ej: 6XXXXXXXX)',
       card: '💳 Tarjeta',
       cardDesc: 'Visa, Mastercard',
+      paymentBreakdown: '💰 Desglose del pago',
+      onlinePayment: '💻 Pago en línea',
+      cashPayment: '💵 Pago en efectivo al conductor',
+      currencyXAF: 'FCFA',
       trustedContacts: 'Contactos de confianza (3 números)',
       trustedContactHelp: 'Estos números se usarán para alertas de seguridad',
       contact1: '1er número de confianza',
@@ -165,13 +198,17 @@ export default function BookingScreen({ route, navigation }) {
       idNumber: 'Nº BI / Passaporte',
       idExpiryDate: 'Data de expiração',
       paymentInfo: 'Informação de pagamento',
-      amount: 'Valor (FCFA)',
+      amount: 'Valor do pagamento online (FCFA)',
       paymentMethod: 'Método de pagamento',
       mobileMoney: '📱 Dinheiro móvel',
       mobileMoneyDesc: 'Orange Money, MTN Mobile Money, Wave',
       mobileMoneyPlaceholder: 'Seu número de pagamento (ex: 6XXXXXXXX)',
       card: '💳 Cartão',
       cardDesc: 'Visa, Mastercard',
+      paymentBreakdown: '💰 Detalhamento do pagamento',
+      onlinePayment: '💻 Pagamento online',
+      cashPayment: '💵 Pagamento em dinheiro ao motorista',
+      currencyXAF: 'FCFA',
       trustedContacts: 'Contactos de confiança (3 números)',
       trustedContactHelp: 'Estes números serão usados para alertas de segurança',
       contact1: '1º número de confiança',
@@ -265,7 +302,6 @@ export default function BookingScreen({ route, navigation }) {
         return;
       }
 
-      // ✅ CORRIGÉ : Utilise config.API_URL au lieu de API_URL
       const paymentResponse = await fetch(`${config.API_URL}/api/payment/initiate`, {
         method: 'POST',
         headers: {
@@ -276,7 +312,8 @@ export default function BookingScreen({ route, navigation }) {
           rideId: rideIdToUse,
           paymentMethod: selectedPaymentType,
           phoneNumber: selectedPaymentType === 'mobile_money' ? `${phoneCode}${mobileMoneyNumber}` : `${phoneCode}${bookerPhone}`,
-          isInternational: false
+          isInternational: false,
+          onlinePercent: onlinePercent
         })
       });
 
@@ -293,6 +330,8 @@ export default function BookingScreen({ route, navigation }) {
           idNumber,
           idExpiryDate: idExpiryDate.split('/').reverse().join('-'),
           amount: paymentData.amount,
+          onlineAmount: onlineAmount,
+          cashAmount: cashAmount,
           paymentMethod: selectedPaymentType,
           mobileMoneyNumber: selectedPaymentType === 'mobile_money' ? mobileMoneyNumber : null,
           trustedContact1: `${phoneCode}${trustedContact1}`,
@@ -323,6 +362,11 @@ export default function BookingScreen({ route, navigation }) {
     ];
   };
 
+  // ========== FORMATAGE DES MONTANTS ==========
+  const formatAmount = (amount) => {
+    return parseInt(amount).toLocaleString();
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Text style={styles.title}>📝 {t.title}</Text>
@@ -335,8 +379,41 @@ export default function BookingScreen({ route, navigation }) {
         <Text style={styles.rideDetails}>
           👤 {ride?.driverName} • {ride?.vehicleBrand} {ride?.licensePlate ? `[${ride?.licensePlate}]` : ''}
         </Text>
-        <Text style={styles.ridePrice}>💰 {ride?.price?.toLocaleString()} FCFA</Text>
+        <Text style={styles.ridePrice}>💰 {parseFloat(ride?.price).toLocaleString()} FCFA</Text>
       </View>
+
+      {/* ========== NOUVELLE SECTION DÉTAIL PAIEMENT HYBRIDE ========== */}
+      <View style={styles.paymentBreakdownCard}>
+        <Text style={styles.sectionTitle}>{t.paymentBreakdown}</Text>
+        
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownLabel}>📊 {onlinePercent}% en ligne</Text>
+          <Text style={styles.breakdownValue}>{formatAmount(onlineAmount)} {t.currencyXAF}</Text>
+        </View>
+        
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownLabel}>{t.onlinePayment}</Text>
+          <Text style={styles.onlineAmount}>{formatAmount(onlineAmount)} {t.currencyXAF}</Text>
+        </View>
+        
+        <View style={styles.breakdownDivider} />
+        
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownLabel}>{t.cashPayment}</Text>
+          <Text style={styles.cashAmount}>{formatAmount(cashAmount)} {t.currencyXAF}</Text>
+        </View>
+        
+        <View style={styles.breakdownTotalRow}>
+          <Text style={styles.breakdownTotalLabel}>💰 Total</Text>
+          <Text style={styles.breakdownTotalValue}>{formatAmount(parseFloat(ride?.price))} {t.currencyXAF}</Text>
+        </View>
+        
+        <View style={styles.infoBox}>
+          <Text style={styles.infoText}>🔒 Le paiement en ligne est sécurisé et ne sera débloqué qu'après votre trajet.</Text>
+          <Text style={styles.infoText}>💵 Le paiement en espèces se fait directement au conducteur.</Text>
+        </View>
+      </View>
+      {/* ============================================================= */}
 
       <Text style={styles.sectionTitle}>📝 {t.bookerInfo}</Text>
       
@@ -459,14 +536,17 @@ export default function BookingScreen({ route, navigation }) {
 
       <Text style={styles.sectionTitle}>💳 {t.paymentInfo}</Text>
 
-      <TextInput
-        style={getInputStyle('amount')}
-        placeholder={t.amount}
-        value={amount}
-        onChangeText={setAmount}
-        onBlur={() => handleFieldBlur('amount', amount, validateRequired)}
-        keyboardType="numeric"
-      />
+      {/* ========== MONTANT MODIFIÉ POUR N'ÊTRE QUE LA PARTIE EN LIGNE ========== */}
+      <View style={styles.onlineAmountContainer}>
+        <TextInput
+          style={[getInputStyle('amount'), styles.onlineAmountInput]}
+          placeholder={t.amount}
+          value={onlineAmount.toString()}
+          editable={false}
+          keyboardType="numeric"
+        />
+        <Text style={styles.onlinePercentText}> ({onlinePercent}% du trajet)</Text>
+      </View>
       {errors.amount && touched.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
 
       <View style={styles.paymentMethodContainer}>
@@ -527,6 +607,91 @@ const styles = StyleSheet.create({
   rideRoute: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 8 },
   rideDetails: { fontSize: 14, color: '#666', marginBottom: 4 },
   ridePrice: { fontSize: 20, fontWeight: 'bold', color: '#FF5A5F', marginTop: 8 },
+  
+  // ========== NOUVEAUX STYLES POUR LE PAIEMENT HYBRIDE ==========
+  paymentBreakdownCard: { 
+    backgroundColor: '#E8F5E9', 
+    borderRadius: 12, 
+    padding: 15, 
+    marginBottom: 20, 
+    borderWidth: 1, 
+    borderColor: '#C8E6C9' 
+  },
+  breakdownRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 10 
+  },
+  breakdownLabel: { 
+    fontSize: 14, 
+    color: '#555' 
+  },
+  breakdownValue: { 
+    fontSize: 14, 
+    fontWeight: 'bold', 
+    color: '#333' 
+  },
+  onlineAmount: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: '#4CAF50' 
+  },
+  cashAmount: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: '#FF9800' 
+  },
+  breakdownDivider: { 
+    height: 1, 
+    backgroundColor: '#C8E6C9', 
+    marginVertical: 10 
+  },
+  breakdownTotalRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginTop: 5,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#A5D6A7'
+  },
+  breakdownTotalLabel: { 
+    fontSize: 16, 
+    fontWeight: 'bold', 
+    color: '#333' 
+  },
+  breakdownTotalValue: { 
+    fontSize: 18, 
+    fontWeight: 'bold', 
+    color: '#FF5A5F' 
+  },
+  infoBox: {
+    backgroundColor: '#FFF3E0',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+  },
+  infoText: {
+    fontSize: 12,
+    color: '#E65100',
+    marginBottom: 5,
+  },
+  onlineAmountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  onlineAmountInput: {
+    flex: 1,
+  },
+  onlinePercentText: {
+    fontSize: 14,
+    color: '#666',
+    marginLeft: 10,
+  },
+  // =============================================================
+  
   sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 10, marginBottom: 15 },
   smallLabel: { fontSize: 12, color: '#666', marginBottom: 5, marginLeft: 5 },
   helpText: { fontSize: 12, color: '#888', marginBottom: 15, marginLeft: 5, fontStyle: 'italic' },

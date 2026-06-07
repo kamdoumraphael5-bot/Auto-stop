@@ -1,3 +1,4 @@
+import DynamicSearchScreen from './screens/DynamicSearchScreen';
 import React, { useState, useEffect, useRef } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -160,6 +161,7 @@ export default function App() {
                     <Stack.Screen name="Conversations" component={ConversationsScreen} options={{ title: 'Messages', headerBackTitle: 'Retour' }} />
                     <Stack.Screen name="RideDetails" component={RideDetailsScreen} options={{ title: 'Détails du trajet', headerBackTitle: 'Retour' }} />
                     <Stack.Screen name="RateRide" component={RateRideScreen} options={{ title: 'Noter un trajet', headerBackTitle: 'Retour' }} />
+		    <Stack.Screen name="DynamicSearch" component={DynamicSearchScreen} options={{ title: 'Recherche dynamique', headerBackTitle: 'Retour' }} />
 		    <Stack.Screen name="ResetPasswordWithOtp" component={ResetPasswordWithOtpScreen} options={{ title: 'Code de vérification', headerBackTitle: 'Retour' }} />
                 </Stack.Navigator>
             </NavigationContainer>

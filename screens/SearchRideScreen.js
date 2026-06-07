@@ -91,8 +91,8 @@ export default function SearchRideScreen({ route, navigation }) {
       // Formater la date pour l'URL
       const formattedDate = date.toISOString().split('T')[0];
       
-      // Construire l'URL avec les paramètres
-      const url = `${API_URL}/api/rides/search?departure=${encodeURIComponent(departure.trim())}&destination=${encodeURIComponent(destination.trim())}&minSeats=${minSeats}&date=${formattedDate}`;
+      // ✅ CORRIGÉ : Utilise config.API_URL au lieu de API_URL
+      const url = `${config.API_URL}/api/rides/search?departure=${encodeURIComponent(departure.trim())}&destination=${encodeURIComponent(destination.trim())}&minSeats=${minSeats}&date=${formattedDate}`;
       
       console.log('🔍 Recherche URL:', url);
       

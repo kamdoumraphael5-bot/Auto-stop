@@ -18,7 +18,7 @@ const pushService = require('./services/pushNotificationService');
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 // ============ CONFIGURATION EMAIL ============
 const nodemailer = require('nodemailer');
@@ -109,7 +109,6 @@ app.put('/api/notifications/:id/read', verifyToken, notificationsRoutes.markAsRe
 app.put('/api/notifications/read-all', verifyToken, notificationsRoutes.markAllAsRead);
 
 // ============ CONFIGURATION UPLOAD LOCAL ============
-
 const uploadDirs = ['uploads', 'uploads/profiles', 'uploads/gallery', 'uploads/files'];
 uploadDirs.forEach(dir => {
     if (!fs.existsSync(dir)) {
@@ -152,7 +151,6 @@ const upload = multer({
 });
 
 // ============ SERVEUR SOCKET.IO ============
-
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
@@ -357,31 +355,27 @@ app.get('/api/countries', async (req, res) => {
     }
 });
 
-// ============ ROUTE D'INSCRIPTION AVEC OTP ============
+// ============ ROUTES D'AUTHENTIFICATION ============
+
+// Route d'inscription avec OTP
 app.post('/api/register', async (req, res) => {
     try {
         const { email, password, name, phone, countryCode, language = 'fr' } = req.body;
 
-        // Vérifier si l'utilisateur existe déjà
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             return res.status(400).json({ error: 'Cet email est déjà utilisé' });
         }
 
-        // Vérifier le pays
         const country = await prisma.country.findUnique({ where: { code: countryCode } });
         if (!country) {
             return res.status(400).json({ error: 'Pays non trouvé' });
         }
 
-        // Hacher le mot de passe
         const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Générer un code OTP à 6 chiffres
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // Expire dans 10 minutes
+        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-        // Créer l'utilisateur (NON VÉRIFIÉ)
         const user = await prisma.user.create({
             data: {
                 email,
@@ -392,14 +386,13 @@ app.post('/api/register', async (req, res) => {
                 role: 'USER',
                 registrationDate: new Date(),
                 language: language,
-                isVerified: false,        // ← NON vérifié
-                otpCode: otpCode,         // ← Stocker le code OTP
+                isVerified: false,
+                otpCode: otpCode,
                 otpExpiresAt: otpExpiresAt,
                 otpAttempts: 0
             }
         });
 
-        // ========== TRADUCTIONS MULTILINGUES ==========
         const translations = {
             fr: {
                 email_subject: "🔐 Vérifiez votre compte Auto-stop",
@@ -433,7 +426,6 @@ app.post('/api/register', async (req, res) => {
 
         const t = translations[language] || translations.fr;
 
-        // ========== ENVOI DU CODE OTP PAR EMAIL ==========
         try {
             const emailHtml = `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -464,9 +456,6 @@ app.post('/api/register', async (req, res) => {
         } catch (emailError) {
             console.error('Erreur envoi email OTP:', emailError.message);
         }
-
-        // ========== NOTIFICATION INTERNE DE BIENVENUE (ATTEND VÉRIFICATION) ==========
-        // On n'envoie pas de notification de bienvenue tant que le compte n'est pas vérifié
         
         res.json({ 
             success: true, 
@@ -482,376 +471,6 @@ app.post('/api/register', async (req, res) => {
         res.status(500).json({ error: 'Erreur lors de l\'inscription' });
     }
 });
-
-// ============ ENVOYER CODE OTP POUR VÉRIFICATION (MULTILINGUE) ============
-app.post('/api/auth/send-otp', async (req, res) => {
-    try {
-        const { email, phone, method = 'email', language = 'fr' } = req.body;
-        
-        // Traductions
-        const translations = {
-            fr: {
-                email_subject: "🔐 Votre code de vérification Auto-stop",
-                email_title: "🔐 Code de vérification",
-                greeting: (name) => `Bonjour ${name},`,
-                message: "Votre code de vérification est :",
-                expiry: "Ce code expire dans <strong>10 minutes</strong>.",
-                ignore: "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
-                telegram_message: (code) => `🔐 *Votre code de vérification Auto-stop*\n\nVotre code est : *${code}*\n\nCe code expire dans 10 minutes.`,
-                error_no_channel: "Aucun canal de communication disponible"
-            },
-            en: {
-                email_subject: "🔐 Your Auto-stop verification code",
-                email_title: "🔐 Verification code",
-                greeting: (name) => `Hello ${name},`,
-                message: "Your verification code is:",
-                expiry: "This code expires in <strong>10 minutes</strong>.",
-                ignore: "If you didn't request this, please ignore this email.",
-                telegram_message: (code) => `🔐 *Your Auto-stop verification code*\n\nYour code is: *${code}*\n\nThis code expires in 10 minutes.`,
-                error_no_channel: "No communication channel available"
-            },
-            es: {
-                email_subject: "🔐 Tu código de verificación Auto-stop",
-                email_title: "🔐 Código de verificación",
-                greeting: (name) => `Hola ${name},`,
-                message: "Tu código de verificación es:",
-                expiry: "Este código expira en <strong>10 minutos</strong>.",
-                ignore: "Si no solicitaste esto, ignora este email.",
-                telegram_message: (code) => `🔐 *Tu código de verificación Auto-stop*\n\nTu código es: *${code}*\n\nEste código expira en 10 minutos.`,
-                error_no_channel: "No hay canal de comunicación disponible"
-            },
-            pt: {
-                email_subject: "🔐 Seu código de verificação Auto-stop",
-                email_title: "🔐 Código de verificação",
-                greeting: (name) => `Olá ${name},`,
-                message: "Seu código de verificação é:",
-                expiry: "Este código expira em <strong>10 minutos</strong>.",
-                ignore: "Se você não solicitou isso, ignore este e-mail.",
-                telegram_message: (code) => `🔐 *Seu código de verificação Auto-stop*\n\nSeu código é: *${code}*\n\nEste código expira em 10 minutos.`,
-                error_no_channel: "Nenhum canal de comunicação disponível"
-            }
-        };
-        
-        // Trouver l'utilisateur
-        const user = await prisma.user.findFirst({
-            where: { OR: [{ email }, { phone }] }
-        });
-        
-        if (!user) {
-            return res.status(404).json({ error: 'Utilisateur non trouvé' });
-        }
-        
-        const userLang = user.language || language || 'fr';
-        const t = translations[userLang] || translations.fr;
-        
-        // Générer code OTP à 6 chiffres
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-        
-        // Stocker le code
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { otpCode, otpExpiresAt, otpAttempts: 0 }
-        });
-        
-        // Envoyer selon la méthode choisie
-        if (method === 'email' && user.email) {
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px;">
-                    <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
-                        <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
-                    </div>
-                    <div style="padding: 20px;">
-                        <h2 style="color: #FF5A5F;">${t.email_title}</h2>
-                        <p>${t.greeting(user.name)}</p>
-                        <p>${t.message}</p>
-                        <div style="font-size: 48px; font-weight: bold; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 10px; letter-spacing: 10px;">
-                            ${otpCode}
-                        </div>
-                        <p>${t.expiry}</p>
-                        <p>${t.ignore}</p>
-                        <hr>
-                        <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
-                    </div>
-                </div>
-            `;
-            await sendEmailWithFallback(user.email, t.email_subject, emailHtml);
-            console.log(`📧 Code OTP ${otpCode} envoyé à ${user.email} (${userLang})`);
-        } 
-        else if (method === 'telegram' && user.telegramChatId) {
-            const { sendTelegramMessage } = require('./services/telegramService');
-            await sendTelegramMessage(user.telegramChatId, t.telegram_message(otpCode));
-            console.log(`🤖 Code OTP ${otpCode} envoyé à Telegram ${user.telegramChatId} (${userLang})`);
-        }
-        else {
-            return res.status(400).json({ error: t.error_no_channel });
-        }
-        
-        res.json({ success: true, message: 'Code envoyé', method });
-        
-    } catch (error) {
-        console.error('❌ Erreur envoi OTP:', error);
-        res.status(500).json({ error: 'Erreur lors de l\'envoi du code' });
-    }
-});
-
-// ============ VÉRIFIER CODE OTP (MULTILINGUE) ==========
-app.post('/api/auth/verify-otp', async (req, res) => {
-    try {
-        const { email, phone, otpCode, language = 'fr' } = req.body;
-        
-        // Traductions des erreurs
-        const translations = {
-            fr: {
-                user_not_found: "Utilisateur non trouvé",
-                no_code: "Aucun code demandé",
-                expired: "Code expiré",
-                too_many_attempts: "Trop de tentatives",
-                invalid_code: "Code invalide",
-                success: "Compte vérifié avec succès"
-            },
-            en: {
-                user_not_found: "User not found",
-                no_code: "No code requested",
-                expired: "Code expired",
-                too_many_attempts: "Too many attempts",
-                invalid_code: "Invalid code",
-                success: "Account verified successfully"
-            },
-            es: {
-                user_not_found: "Usuario no encontrado",
-                no_code: "No se solicitó ningún código",
-                expired: "Código expirado",
-                too_many_attempts: "Demasiados intentos",
-                invalid_code: "Código inválido",
-                success: "Cuenta verificada exitosamente"
-            },
-            pt: {
-                user_not_found: "Usuário não encontrado",
-                no_code: "Nenhum código solicitado",
-                expired: "Código expirado",
-                too_many_attempts: "Muitas tentativas",
-                invalid_code: "Código inválido",
-                success: "Conta verificada com sucesso"
-            }
-        };
-        
-        // Trouver l'utilisateur
-        const user = await prisma.user.findFirst({
-            where: { OR: [{ email }, { phone }] }
-        });
-        
-        if (!user) {
-            const lang = language || 'fr';
-            return res.status(404).json({ error: translations[lang]?.user_not_found || translations.fr.user_not_found });
-        }
-        
-        const userLang = user.language || language || 'fr';
-        const t = translations[userLang] || translations.fr;
-        
-        // Vérifications
-        if (!user.otpCode) {
-            return res.status(400).json({ error: t.no_code });
-        }
-        
-        if (new Date() > user.otpExpiresAt) {
-            return res.status(400).json({ error: t.expired });
-        }
-        
-        if (user.otpAttempts >= 3) {
-            return res.status(400).json({ error: t.too_many_attempts });
-        }
-        
-        if (user.otpCode !== otpCode) {
-            await prisma.user.update({
-                where: { id: user.id },
-                data: { otpAttempts: { increment: 1 } }
-            });
-            return res.status(400).json({ error: t.invalid_code });
-        }
-        
-        // ✅ Code valide -> vérifier le compte
-        await prisma.user.update({
-            where: { id: user.id },
-            data: { 
-                isVerified: true,
-                otpCode: null,
-                otpExpiresAt: null,
-                otpAttempts: 0
-            }
-        });
-        
-        // ========== NOTIFICATION DE BIENVENUE (CLOCHE) ==========
-        try {
-            const welcomeTranslations = {
-                fr: {
-                    title: "🎉 Bienvenue sur Auto-stop !",
-                    message: "Votre compte a été vérifié avec succès. Publiez votre premier trajet ou réservez une place dès maintenant !"
-                },
-                en: {
-                    title: "🎉 Welcome to Auto-stop!",
-                    message: "Your account has been successfully verified. Publish your first ride or book a seat now!"
-                },
-                es: {
-                    title: "🎉 ¡Bienvenido a Auto-stop!",
-                    message: "Tu cuenta ha sido verificada exitosamente. ¡Publica tu primer viaje o reserva un asiento ahora!"
-                },
-                pt: {
-                    title: "🎉 Bem-vindo ao Auto-stop!",
-                    message: "Sua conta foi verificada com sucesso. Publique sua primeira viagem ou reserve um lugar agora!"
-                }
-            };
-            const wt = welcomeTranslations[userLang] || welcomeTranslations.fr;
-            
-            await prisma.notification.create({
-                data: {
-                    userId: user.id,
-                    type: "welcome",
-                    title: wt.title,
-                    message: wt.message,
-                    isRead: false
-                }
-            });
-            console.log(`📬 Notification de bienvenue (cloche) envoyée à ${user.name} (${userLang})`);
-        } catch (notifError) {
-            console.error('❌ Erreur notification bienvenue:', notifError.message);
-        }
-        
-        // ========== EMAIL DE BIENVENUE ==========
-        console.log('📧 Préparation de l\'email de bienvenue...');
-        try {
-            const welcomeEmailTranslations = {
-                fr: {
-                    subject: "🎉 Bienvenue sur Auto-stop ! Votre compte est actif",
-                    title: "Bienvenue {name} ! 🎉",
-                    text: "Nous sommes ravis de vous compter parmi notre communauté de covoiturage sécurisé.",
-                    features_title: "✨ Ce qui vous attend :",
-                    features: [
-                        "🔍 Trouvez des trajets vers toutes les villes",
-                        "🚘 Publiez vos trajets et gagnez de l'argent",
-                        "🤝 Voyagez en toute sécurité",
-                        "⭐ Notez vos compagnons de voyage"
-                    ],
-                    button: "Découvrir l'application",
-                    footer: "Votre compte a été vérifié avec succès. Vous pouvez maintenant publier des trajets ou réserver des places."
-                },
-                en: {
-                    subject: "🎉 Welcome to Auto-stop! Your account is active",
-                    title: "Welcome {name}! 🎉",
-                    text: "We are delighted to have you in our secure carpooling community.",
-                    features_title: "✨ What awaits you:",
-                    features: [
-                        "🔍 Find rides to all cities",
-                        "🚘 Publish your rides and earn money",
-                        "🤝 Travel safely",
-                        "⭐ Rate your travel companions"
-                    ],
-                    button: "Discover the app",
-                    footer: "Your account has been successfully verified. You can now publish rides or book seats."
-                },
-                es: {
-                    subject: "🎉 ¡Bienvenido a Auto-stop! Tu cuenta está activa",
-                    title: "¡Bienvenido {name}! 🎉",
-                    text: "Estamos encantados de tenerte en nuestra comunidad de viajes compartidos seguros.",
-                    features_title: "✨ Lo que te espera:",
-                    features: [
-                        "🔍 Encuentra viajes a todas las ciudades",
-                        "🚘 Publica tus viajes y gana dinero",
-                        "🤝 Viaja con seguridad",
-                        "⭐ Califica a tus compañeros de viaje"
-                    ],
-                    button: "Descubrir la aplicación",
-                    footer: "Tu cuenta ha sido verificada exitosamente. Ahora puedes publicar viajes o reservar asientos."
-                },
-                pt: {
-                    subject: "🎉 Bem-vindo ao Auto-stop! Sua conta está ativa",
-                    title: "Bem-vindo {name}! 🎉",
-                    text: "Estamos felizes em tê-lo em nossa comunidade de caronas seguras.",
-                    features_title: "✨ O que espera por você:",
-                    features: [
-                        "🔍 Encontre viagens para todas as cidades",
-                        "🚘 Publique suas viagens e ganhe dinheiro",
-                        "🤝 Viaje com segurança",
-                        "⭐ Avalie seus companheiros de viagem"
-                    ],
-                    button: "Descobrir o aplicativo",
-                    footer: "Sua conta foi verificada com sucesso. Agora você pode publicar viagens ou reservar lugares."
-                }
-            };
-            
-            const wtEmail = welcomeEmailTranslations[userLang] || welcomeEmailTranslations.fr;
-            const featuresList = wtEmail.features.map(f => `<li>${f}</li>`).join('');
-            
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
-                        <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
-                    </div>
-                    <div style="padding: 20px;">
-                        <h2 style="color: #FF5A5F;">${wtEmail.title.replace('{name}', user.name)}</h2>
-                        <p>${wtEmail.text}</p>
-                        <h3>${wtEmail.features_title}</h3>
-                        <ul>
-                            ${featuresList}
-                        </ul>
-                        <div style="text-align: center; margin: 30px 0;">
-                            <a href="https://autostop.app" style="background-color: #FF5A5F; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">
-                                ${wtEmail.button}
-                            </a>
-                        </div>
-                        <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center;">
-                            <p style="margin: 0; color: #2e7d32;">✅ ${wtEmail.footer}</p>
-                        </div>
-                        <hr>
-                        <p style="color: #888; font-size: 12px; text-align: center;">
-                            Auto-stop - Covoiturage sécurisé<br>
-                            <a href="https://autostop.app" style="color: #FF5A5F;">autostop.app</a>
-                        </p>
-                    </div>
-                </div>
-            `;
-            
-            console.log(`📧 Envoi de l'email de bienvenue à ${user.email}...`);
-            const emailResult = await sendEmailWithFallback(user.email, wtEmail.subject, emailHtml);
-            
-            if (emailResult && emailResult.success) {
-                console.log(`✅ Email de bienvenue envoyé avec succès à ${user.email} (${userLang}) via ${emailResult.service}`);
-            } else {
-                console.log(`❌ Échec envoi email de bienvenue à ${user.email}`);
-            }
-        } catch (emailError) {
-            console.error('❌ Erreur envoi email de bienvenue:', emailError.message);
-            console.error('❌ Stack:', emailError.stack);
-        }
-
-        // Générer le token JWT
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, name: user.name },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-        );
-        
-        console.log(`✅ Compte vérifié pour ${user.email} - Email de bienvenue envoyé`);
-        
-        res.json({ 
-            success: true, 
-            message: t.success,
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                phone: user.phone,
-                isVerified: true,
-                language: userLang
-            }
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur vérification OTP:', error);
-        res.status(500).json({ error: 'Erreur lors de la vérification' });
-    }
-});       
 
 // Route de connexion
 app.post('/api/login', async (req, res) => {
@@ -899,892 +518,453 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Route pour les trajets disponibles
-app.get('/api/rides', async (req, res) => {
+// Envoyer code OTP
+app.post('/api/auth/send-otp', async (req, res) => {
     try {
-        const rides = await prisma.ride.findMany({
-            where: { 
-                status: 'SCHEDULED',
-                date: { gte: new Date() },
-                isHidden: false
+        const { email, phone, method = 'email', language = 'fr' } = req.body;
+        
+        const translations = {
+            fr: {
+                email_subject: "🔐 Votre code de vérification Auto-stop",
+                email_title: "🔐 Code de vérification",
+                greeting: (name) => `Bonjour ${name},`,
+                message: "Votre code de vérification est :",
+                expiry: "Ce code expire dans <strong>10 minutes</strong>.",
+                ignore: "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+                telegram_message: (code) => `🔐 *Votre code de vérification Auto-stop*\n\nVotre code est : *${code}*\n\nCe code expire dans 10 minutes.`,
+                error_no_channel: "Aucun canal de communication disponible"
             },
-            include: {
-                driver: {
-                    select: {
-                        id: true,
-                        name: true,
-                        rating: true,
-                        photoUrl: true,
-                        language: true
-                    }
-                },
-                country: true,
-                bookings: {
-                    where: { status: 'CONFIRMED' },
-                    select: { seats: true }
-                }
+            en: {
+                email_subject: "🔐 Your Auto-stop verification code",
+                email_title: "🔐 Verification code",
+                greeting: (name) => `Hello ${name},`,
+                message: "Your verification code is:",
+                expiry: "This code expires in <strong>10 minutes</strong>.",
+                ignore: "If you didn't request this, please ignore this email.",
+                telegram_message: (code) => `🔐 *Your Auto-stop verification code*\n\nYour code is: *${code}*\n\nThis code expires in 10 minutes.`,
+                error_no_channel: "No communication channel available"
             },
-            orderBy: { date: 'asc' }
-        });
-        
-        const ridesWithStats = rides.map(ride => {
-            const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
-            return {
-                ...ride,
-                totalSeats: ride.totalSeats || ride.availableSeats + totalBookedSeats,
-                availableSeats: ride.availableSeats,
-                bookedSeats: totalBookedSeats
-            };
-        });
-        
-        res.json({ rides: ridesWithStats });
-    } catch (error) {
-        console.error('Erreur:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement des trajets' });
-    }
-});
-
-// Route pour les trajets publiés par l'utilisateur
-app.get('/api/rides/my-published', verifyToken, async (req, res) => {
-    try {
-        const rides = await prisma.ride.findMany({
-            where: { driverId: req.userId },
-            include: {
-                driver: { select: { name: true, rating: true, language: true } },
-                bookings: {
-                    include: {
-                        passenger: { select: { id: true, name: true, phone: true, photoUrl: true } }
-                    }
-                }
+            es: {
+                email_subject: "🔐 Tu código de verificación Auto-stop",
+                email_title: "🔐 Código de verificación",
+                greeting: (name) => `Hola ${name},`,
+                message: "Tu código de verificación es:",
+                expiry: "Este código expira en <strong>10 minutos</strong>.",
+                ignore: "Si no solicitaste esto, ignora este email.",
+                telegram_message: (code) => `🔐 *Tu código de verificación Auto-stop*\n\nTu código es: *${code}*\n\nEste código expira en 10 minutos.`,
+                error_no_channel: "No hay canal de comunicación disponible"
             },
-            orderBy: { date: 'desc' }
-        });
+            pt: {
+                email_subject: "🔐 Seu código de verificação Auto-stop",
+                email_title: "🔐 Código de verificação",
+                greeting: (name) => `Olá ${name},`,
+                message: "Seu código de verificação é:",
+                expiry: "Este código expira em <strong>10 minutos</strong>.",
+                ignore: "Se você não solicitou isso, ignore este e-mail.",
+                telegram_message: (code) => `🔐 *Seu código de verificação Auto-stop*\n\nSeu código é: *${code}*\n\nEste código expira em 10 minutos.`,
+                error_no_channel: "Nenhum canal de comunicação disponível"
+            }
+        };
         
-        res.json({ rides });
-    } catch (error) {
-        console.error('Erreur:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement' });
-    }
-});
-
-// Route pour les réservations de l'utilisateur
-app.get('/api/rides/my-bookings', verifyToken, async (req, res) => {
-    try {
-        const bookings = await prisma.booking.findMany({
-            where: { passengerId: req.userId },
-            include: {
-                ride: {
-                    include: {
-                        driver: {
-                            select: { name: true, rating: true, photoUrl: true, language: true }
-                        }
-                    }
-                }
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-        
-        const rides = bookings.map(b => ({
-            bookingId: b.id,
-            id: b.ride.id,
-            departure: b.ride.departure,
-            destination: b.ride.destination,
-            date: b.ride.date,
-            price: b.ride.price,
-            availableSeats: b.ride.availableSeats,
-            driverName: b.ride.driver.name,
-            driverPhoto: b.ride.driver.photoUrl,
-            driverRating: b.ride.driver.rating,
-            bookingStatus: b.status,
-            bookingDate: b.createdAt,
-            seats: b.seats
-        }));
-        
-        res.json({ rides });
-    } catch (error) {
-        console.error('Erreur:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement' });
-    }
-});
-
-// Route pour publier un trajet
-app.post('/api/rides', verifyToken, async (req, res) => {
-    try {
-        const { 
-            departure, 
-            meetingPoint, 
-            destination, 
-            dropoffPoint, 
-            date, 
-            availableSeats, 
-            price, 
-            vehicleType, 
-            vehicleBrand,
-            licensePlate,
-            estimatedDuration,
-            arrivalTime,
-            isRecurring 
-        } = req.body;
-        
-        console.log('📝 Publication trajet reçue:', { departure, destination, price });
-        
-        if (!departure || !destination || !availableSeats || !price || !vehicleType || !vehicleBrand) {
-            return res.status(400).json({ error: 'Champs obligatoires manquants' });
-        }
-        
-        const user = await prisma.user.findUnique({ 
-            where: { id: req.userId },
-            include: { country: true }
+        const user = await prisma.user.findFirst({
+            where: { OR: [{ email }, { phone }] }
         });
         
         if (!user) {
-            return res.status(401).json({ error: 'Utilisateur non trouvé' });
+            return res.status(404).json({ error: 'Utilisateur non trouvé' });
         }
         
-        const ride = await prisma.ride.create({
-            data: {
-                departure,
-                meetingPoint: meetingPoint || null,
-                destination,
-                dropoffPoint: dropoffPoint || null,
-                date: new Date(date),
-                availableSeats: parseInt(availableSeats),
-                price: parseFloat(price),
-                vehicleType,
-                vehicleBrand,
-                licensePlate: licensePlate || null,
-                estimatedDuration: estimatedDuration ? parseInt(estimatedDuration) : null,
-                arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
-                isRecurring: isRecurring || false,
-                driverId: user.id,
-                countryId: user.countryId,
-                status: 'SCHEDULED',
-                totalSeats: parseInt(availableSeats)
-            }
-        });
+        const userLang = user.language || language || 'fr';
+        const t = translations[userLang] || translations.fr;
+        
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
         
         await prisma.user.update({
             where: { id: user.id },
-            data: { totalTrips: { increment: 1 } }
+            data: { otpCode, otpExpiresAt, otpAttempts: 0 }
         });
         
-        console.log('✅ Trajet créé:', ride.id);
+        if (method === 'email' && user.email) {
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px;">
+                    <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
+                        <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
+                    </div>
+                    <div style="padding: 20px;">
+                        <h2 style="color: #FF5A5F;">${t.email_title}</h2>
+                        <p>${t.greeting(user.name)}</p>
+                        <p>${t.message}</p>
+                        <div style="font-size: 48px; font-weight: bold; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 10px; letter-spacing: 10px;">
+                            ${otpCode}
+                        </div>
+                        <p>${t.expiry}</p>
+                        <p>${t.ignore}</p>
+                        <hr>
+                        <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
+                    </div>
+                </div>
+            `;
+            await sendEmailWithFallback(user.email, t.email_subject, emailHtml);
+            console.log(`📧 Code OTP ${otpCode} envoyé à ${user.email} (${userLang})`);
+        } 
+        else if (method === 'telegram' && user.telegramChatId) {
+            const { sendTelegramMessage } = require('./services/telegramService');
+            await sendTelegramMessage(user.telegramChatId, t.telegram_message(otpCode));
+            console.log(`🤖 Code OTP ${otpCode} envoyé à Telegram ${user.telegramChatId} (${userLang})`);
+        }
+        else {
+            return res.status(400).json({ error: t.error_no_channel });
+        }
         
-        // ========== NOTIFICATION DE PUBLICATION DE TRAJET (MULTILINGUE) ==========
-        const userLanguage = user.language || 'fr';
+        res.json({ success: true, message: 'Code envoyé', method });
         
-        const pubTranslations = {
+    } catch (error) {
+        console.error('❌ Erreur envoi OTP:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'envoi du code' });
+    }
+});
+
+// Vérifier code OTP
+app.post('/api/auth/verify-otp', async (req, res) => {
+    try {
+        const { email, phone, otpCode, language = 'fr' } = req.body;
+        
+        const translations = {
             fr: {
-                title: "✅ Votre trajet a été publié !",
-                message: `${departure} → ${destination} le ${new Date(date).toLocaleDateString('fr-FR')}. Bonnes réservations !`,
-                email_subject: "✅ Votre trajet a été publié",
-                email_title: "✅ Votre trajet a été publié !",
-                email_greeting: `Bonjour ${user.name},`,
-                email_text: `Votre trajet <strong>${departure} → ${destination}</strong> du <strong>${new Date(date).toLocaleDateString('fr-FR')}</strong> a bien été publié.`,
-                email_price: `💰 Prix : ${price} FCFA par place`,
-                email_seats: `💺 Places disponibles : ${availableSeats}`,
-                email_footer: "Les passagers peuvent maintenant réserver votre trajet. Soyez attentif aux notifications !"
+                user_not_found: "Utilisateur non trouvé",
+                no_code: "Aucun code demandé",
+                expired: "Code expiré",
+                too_many_attempts: "Trop de tentatives",
+                invalid_code: "Code invalide",
+                success: "Compte vérifié avec succès"
             },
             en: {
-                title: "✅ Your ride has been published!",
-                message: `${departure} → ${destination} on ${new Date(date).toLocaleDateString('en-US')}. Good luck with bookings!`,
-                email_subject: "✅ Your ride has been published",
-                email_title: "✅ Your ride has been published!",
-                email_greeting: `Hello ${user.name},`,
-                email_text: `Your ride <strong>${departure} → ${destination}</strong> on <strong>${new Date(date).toLocaleDateString('en-US')}</strong> has been successfully published.`,
-                email_price: `💰 Price: ${price} FCFA per seat`,
-                email_seats: `💺 Available seats: ${availableSeats}`,
-                email_footer: "Passengers can now book your ride. Stay tuned for notifications!"
+                user_not_found: "User not found",
+                no_code: "No code requested",
+                expired: "Code expired",
+                too_many_attempts: "Too many attempts",
+                invalid_code: "Invalid code",
+                success: "Account verified successfully"
             },
             es: {
-                title: "✅ ¡Tu viaje ha sido publicado!",
-                message: `${departure} → ${destination} el ${new Date(date).toLocaleDateString('es-ES')}. ¡Buenas reservas!`,
-                email_subject: "✅ Tu viaje ha sido publicado",
-                email_title: "✅ ¡Tu viaje ha sido publicado!",
-                email_greeting: `Hola ${user.name},`,
-                email_text: `Tu viaje <strong>${departure} → ${destination}</strong> del <strong>${new Date(date).toLocaleDateString('es-ES')}</strong> ha sido publicado correctamente.`,
-                email_price: `💰 Precio: ${price} FCFA por asiento`,
-                email_seats: `💺 Asientos disponibles: ${availableSeats}`,
-                email_footer: "Los pasajeros ya pueden reservar tu viaje. ¡Mantente atento a las notificaciones!"
+                user_not_found: "Usuario no encontrado",
+                no_code: "No se solicitó ningún código",
+                expired: "Código expirado",
+                too_many_attempts: "Demasiados intentos",
+                invalid_code: "Código inválido",
+                success: "Cuenta verificada exitosamente"
             },
             pt: {
-                title: "✅ Sua viagem foi publicada!",
-                message: `${departure} → ${destination} em ${new Date(date).toLocaleDateString('pt-PT')}. Boas reservas!`,
-                email_subject: "✅ Sua viagem foi publicada",
-                email_title: "✅ Sua viagem foi publicada!",
-                email_greeting: `Olá ${user.name},`,
-                email_text: `Sua viagem <strong>${departure} → ${destination}</strong> em <strong>${new Date(date).toLocaleDateString('pt-PT')}</strong> foi publicada com sucesso.`,
-                email_price: `💰 Preço: ${price} FCFA por lugar`,
-                email_seats: `💺 Lugares disponíveis: ${availableSeats}`,
-                email_footer: "Os passageiros já podem reservar sua viagem. Fique atento às notificações!"
+                user_not_found: "Usuário não encontrado",
+                no_code: "Nenhum código solicitado",
+                expired: "Código expirado",
+                too_many_attempts: "Muitas tentativas",
+                invalid_code: "Código inválido",
+                success: "Conta verificada com sucesso"
             }
         };
-
-        const tPub = pubTranslations[userLanguage] || pubTranslations.fr;
-
+        
+        const user = await prisma.user.findFirst({
+            where: { OR: [{ email }, { phone }] }
+        });
+        
+        if (!user) {
+            const lang = language || 'fr';
+            return res.status(404).json({ error: translations[lang]?.user_not_found || translations.fr.user_not_found });
+        }
+        
+        const userLang = user.language || language || 'fr';
+        const t = translations[userLang] || translations.fr;
+        
+        if (!user.otpCode) {
+            return res.status(400).json({ error: t.no_code });
+        }
+        
+        if (new Date() > user.otpExpiresAt) {
+            return res.status(400).json({ error: t.expired });
+        }
+        
+        if (user.otpAttempts >= 3) {
+            return res.status(400).json({ error: t.too_many_attempts });
+        }
+        
+        if (user.otpCode !== otpCode) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { otpAttempts: { increment: 1 } }
+            });
+            return res.status(400).json({ error: t.invalid_code });
+        }
+        
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { 
+                isVerified: true,
+                otpCode: null,
+                otpExpiresAt: null,
+                otpAttempts: 0
+            }
+        });
+        
         try {
+            const welcomeTranslations = {
+                fr: {
+                    title: "🎉 Bienvenue sur Auto-stop !",
+                    message: "Votre compte a été vérifié avec succès. Publiez votre premier trajet ou réservez une place dès maintenant !"
+                },
+                en: {
+                    title: "🎉 Welcome to Auto-stop!",
+                    message: "Your account has been successfully verified. Publish your first ride or book a seat now!"
+                },
+                es: {
+                    title: "🎉 ¡Bienvenido a Auto-stop!",
+                    message: "Tu cuenta ha sido verificada exitosamente. ¡Publica tu primer viaje o reserva un asiento ahora!"
+                },
+                pt: {
+                    title: "🎉 Bem-vindo ao Auto-stop!",
+                    message: "Sua conta foi verificada com sucesso. Publique sua primeira viagem ou reserve um lugar agora!"
+                }
+            };
+            const wt = welcomeTranslations[userLang] || welcomeTranslations.fr;
+            
             await prisma.notification.create({
                 data: {
                     userId: user.id,
-                    type: "ride_published",
-                    title: tPub.title,
-                    message: tPub.message,
-                    data: JSON.stringify({ rideId: ride.id }),
+                    type: "welcome",
+                    title: wt.title,
+                    message: wt.message,
                     isRead: false
                 }
             });
-            console.log(`📬 Notification de publication envoyée à ${user.name} (${userLanguage})`);
-            
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
-                        <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
-                    </div>
-                    <div style="padding: 20px;">
-                        <h2 style="color: #FF5A5F;">${tPub.email_title}</h2>
-                        <p>${tPub.email_greeting}</p>
-                        <p>${tPub.email_text}</p>
-                        <ul style="list-style: none; padding: 0;">
-                            <li>${tPub.email_price}</li>
-                            <li>${tPub.email_seats}</li>
-                        </ul>
-                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <p style="margin: 0;">🔔 ${tPub.email_footer}</p>
-                        </div>
-                        <hr>
-                        <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
-                    </div>
-                </div>
-            `;
-            
-            await sendEmailWithFallback(user.email, tPub.email_subject, emailHtml);
-            console.log(`📧 Email de confirmation de publication envoyé à ${user.email} (${userLanguage})`);
+            console.log(`📬 Notification de bienvenue (cloche) envoyée à ${user.name} (${userLang})`);
         } catch (notifError) {
-            console.error('Erreur notification publication:', notifError.message);
+            console.error('❌ Erreur notification bienvenue:', notifError.message);
         }
         
-        // ========== PROGRAMMER LES RAPPELS ==========
-        try {
-            await reminderService.scheduleRideReminders(ride.id);
-            console.log(`⏰ Rappels programmés pour le trajet ${ride.id}`);
-        } catch (reminderError) {
-            console.error('❌ Erreur programmation rappels:', reminderError.message);
-        }
-        
-        res.json({ message: 'Trajet publié avec succès', ride });
-        
-    } catch (error) {
-        console.error('❌ Erreur publication trajet:', error);
-        res.status(500).json({ error: 'Erreur lors de la publication: ' + error.message });
-    }
-});
-
-// ============ ROUTE POUR CRÉER UNE RÉSERVATION ============
-app.post('/api/bookings', verifyToken, async (req, res) => {
-    try {
-        const { 
-            rideId, 
-            seats, 
-            bookerName, 
-            bookerPhone, 
-            travelerName, 
-            travelerPhone, 
-            idNumber, 
-            idExpiryDate, 
-            amount, 
-            paymentMethod 
-        } = req.body;
-
-        console.log('📝 Création réservation reçue:', { rideId, seats, bookerName });
-
-        const ride = await prisma.ride.findUnique({
-            where: { id: rideId }
-        });
-
-        if (!ride) {
-            return res.status(404).json({ error: 'Trajet non trouvé' });
-        }
-
-        if (ride.availableSeats < seats) {
-            return res.status(400).json({ error: 'Plus assez de places disponibles' });
-        }
-
-        if (ride.driverId === req.userId) {
-            return res.status(400).json({ error: 'Vous ne pouvez pas réserver votre propre trajet' });
-        }
-
-        const booking = await prisma.booking.create({
-            data: {
-                rideId: rideId,
-                passengerId: req.userId,
-                seats: seats,
-                status: 'CONFIRMED',
-                bookerName: bookerName || null,
-                bookerPhone: bookerPhone || null,
-                travelerName: travelerName || null,
-                travelerPhone: travelerPhone || null,
-                idNumber: idNumber || null,
-                idExpiryDate: idExpiryDate ? new Date(idExpiryDate) : null,
-                amount: amount || ride.price * seats,
-                paymentMethod: paymentMethod || null
-            }
-        });
-
-        await prisma.ride.update({
-            where: { id: rideId },
-            data: { availableSeats: { decrement: seats } }
-        });
-
-        console.log('✅ Réservation créée:', booking.id);
-        
-        // ========== NOTIFICATION AU CONDUCTEUR (MULTILINGUE) ==========
-        try {
-            const rideWithDriver = await prisma.ride.findUnique({
-                where: { id: rideId },
-                include: { driver: true }
-            });
-
-            const driverLanguage = rideWithDriver.driver.language || 'fr';
-            
-            const bookingTranslations = {
-                fr: {
-                    title: "🔔 Nouvelle réservation !",
-                    message: `${bookerName || 'Un passager'} a réservé ${seats} place(s) pour votre trajet ${rideWithDriver.departure} → ${rideWithDriver.destination}`,
-                    email_subject: "🔔 Nouvelle réservation sur votre trajet",
-                    email_title: "🔔 Nouvelle réservation !",
-                    email_greeting: `Bonjour ${rideWithDriver.driver.name},`,
-                    email_text: `<strong>${bookerName || 'Un passager'}</strong> a réservé <strong>${seats} place(s)</strong> pour votre trajet <strong>${rideWithDriver.departure} → ${rideWithDriver.destination}</strong>.`,
-                    email_footer: "Connectez-vous à l'application pour voir les détails et contacter le passager."
-                },
-                en: {
-                    title: "🔔 New booking!",
-                    message: `${bookerName || 'A passenger'} has booked ${seats} seat(s) for your ride ${rideWithDriver.departure} → ${rideWithDriver.destination}`,
-                    email_subject: "🔔 New booking for your ride",
-                    email_title: "🔔 New booking!",
-                    email_greeting: `Hello ${rideWithDriver.driver.name},`,
-                    email_text: `<strong>${bookerName || 'A passenger'}</strong> has booked <strong>${seats} seat(s)</strong> for your ride <strong>${rideWithDriver.departure} → ${rideWithDriver.destination}</strong>.`,
-                    email_footer: "Log in to the app to view details and contact the passenger."
-                },
-                es: {
-                    title: "🔔 ¡Nueva reserva!",
-                    message: `${bookerName || 'Un pasajero'} ha reservado ${seats} asiento(s) para tu viaje ${rideWithDriver.departure} → ${rideWithDriver.destination}`,
-                    email_subject: "🔔 Nueva reserva en tu viaje",
-                    email_title: "🔔 ¡Nueva reserva!",
-                    email_greeting: `Hola ${rideWithDriver.driver.name},`,
-                    email_text: `<strong>${bookerName || 'Un pasajero'}</strong> ha reservado <strong>${seats} asiento(s)</strong> para tu viaje <strong>${rideWithDriver.departure} → ${rideWithDriver.destination}</strong>.`,
-                    email_footer: "Inicia sesión en la aplicación para ver los detalles y contactar al pasajero."
-                },
-                pt: {
-                    title: "🔔 Nova reserva!",
-                    message: `${bookerName || 'Um passageiro'} reservou ${seats} lugar(es) para sua viagem ${rideWithDriver.departure} → ${rideWithDriver.destination}`,
-                    email_subject: "🔔 Nova reserva na sua viagem",
-                    email_title: "🔔 Nova reserva!",
-                    email_greeting: `Olá ${rideWithDriver.driver.name},`,
-                    email_text: `<strong>${bookerName || 'Um passageiro'}</strong> reservou <strong>${seats} lugar(es)</strong> para sua viagem <strong>${rideWithDriver.departure} → ${rideWithDriver.destination}</strong>.`,
-                    email_footer: "Faça login no aplicativo para ver os detalhes e entrar em contato com o passageiro."
-                }
-            };
-
-            const tBooking = bookingTranslations[driverLanguage] || bookingTranslations.fr;
-
-            // Notification interne
-            await prisma.notification.create({
-                data: {
-                    userId: rideWithDriver.driverId,
-                    type: "new_booking",
-                    title: tBooking.title,
-                    message: tBooking.message,
-                    data: JSON.stringify({ rideId: rideId, bookingId: booking.id, seats: seats }),
-                    isRead: false
-                }
-            });
-            console.log(`📬 Notification interne envoyée au conducteur (${driverLanguage})`);
-
-            // Email au conducteur
-            const emailHtml = `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
-                        <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
-                    </div>
-                    <div style="padding: 20px;">
-                        <h2 style="color: #FF5A5F;">${tBooking.email_title}</h2>
-                        <p>${tBooking.email_greeting}</p>
-                        <p>${tBooking.email_text}</p>
-                        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin: 15px 0;">
-                            <p style="margin: 0;">🔔 ${tBooking.email_footer}</p>
-                        </div>
-                        <hr>
-                        <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
-                    </div>
-                </div>
-            `;
-
-            await sendEmailWithFallback(rideWithDriver.driver.email, tBooking.email_subject, emailHtml);
-            console.log(`📧 Email de notification envoyé au conducteur (${driverLanguage})`);
-
-        } catch (notifError) {
-            console.error('❌ Erreur notification conducteur:', notifError.message);
-        }
-
-        // ========== NOTIFICATIONS PUSH ==========
-        try {
-            const rideWithDriver = await prisma.ride.findUnique({
-                where: { id: rideId },
-                include: { driver: { select: { expoPushToken: true, language: true } } }
-            });
-            
-            const passenger = await prisma.user.findUnique({
-                where: { id: req.userId },
-                select: { name: true, language: true, expoPushToken: true }
-            });
-            
-            // Push au conducteur
-            if (rideWithDriver?.driver?.expoPushToken) {
-                await pushService.sendNewBookingPush(
-                    rideWithDriver.driverId,
-                    bookerName || passenger?.name || 'Un passager',
-                    seats,
-                    rideWithDriver.departure,
-                    rideWithDriver.destination,
-                    prisma
-                );
-                console.log(`📱 Push notification envoyée au conducteur`);
-            }
-            
-            // Push au passager
-            if (passenger?.expoPushToken) {
-                await pushService.sendBookingConfirmedPush(
-                    req.userId,
-                    rideWithDriver.driver.name,
-                    rideWithDriver.departure,
-                    rideWithDriver.destination,
-                    new Date(rideWithDriver.date).toLocaleDateString(),
-                    new Date(rideWithDriver.date).toLocaleTimeString(),
-                    prisma
-                );
-                console.log(`📱 Push notification envoyée au passager`);
-            }
-            
-        } catch (pushError) {
-            console.error('❌ Erreur envoi push:', pushError.message);
-        }
-
-        res.json({ message: 'Réservation confirmée', booking });
-
-    } catch (error) {
-        console.error('❌ Erreur création réservation:', error);
-        res.status(500).json({ error: 'Erreur lors de la réservation: ' + error.message });
-    }
-});
-
-// Route pour annuler une réservation
-app.put('/api/bookings/:id/cancel', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        console.log('📝 Annulation réservation ID:', id);
-        
-        const booking = await prisma.booking.findUnique({
-            where: { id: id },
-            include: { ride: true }
-        });
-        
-        if (!booking) {
-            return res.status(404).json({ error: 'Réservation non trouvée' });
-        }
-        
-        if (booking.passengerId !== req.userId) {
-            return res.status(403).json({ error: 'Non autorisé' });
-        }
-        
-        if (booking.status === 'CANCELLED') {
-            return res.status(400).json({ error: 'Réservation déjà annulée' });
-        }
-        
-        if (new Date(booking.ride.date) < new Date()) {
-            return res.status(400).json({ error: 'Impossible d\'annuler un trajet déjà passé' });
-        }
-        
-        const updatedBooking = await prisma.booking.update({
-            where: { id: id },
-            data: { status: 'CANCELLED' }
-        });
-        
-        await prisma.ride.update({
-            where: { id: booking.rideId },
-            data: { availableSeats: { increment: booking.seats } }
-        });
-        
-        // ========== VÉRIFIER S'IL RESTE DES PASSAGERS ==========
-        const remainingBookings = await prisma.booking.count({
-            where: { rideId: booking.rideId, status: 'CONFIRMED' }
-        });
-        
-        if (remainingBookings === 0) {
-            try {
-                await reminderService.cancelRideReminders(booking.rideId);
-                console.log(`⏰ Rappels annulés pour le trajet ${booking.rideId} (plus de passagers)`);
-            } catch (reminderError) {
-                console.error('❌ Erreur annulation rappels:', reminderError.message);
-            }
-        }
-        
-        res.json({ message: 'Réservation annulée avec succès', booking: updatedBooking });
-    } catch (error) {
-        console.error('Erreur annulation:', error);
-        res.status(500).json({ error: 'Erreur lors de l\'annulation' });
-    }
-});
-
-// ============ DÉMARRER LE TRAJET ============
-app.put('/api/rides/:id/start', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const ride = await prisma.ride.findUnique({
-            where: { id: id },
-            include: {
-                driver: true,
-                bookings: {
-                    where: { status: 'CONFIRMED' },
-                    include: { passenger: true }
-                }
-            }
-        });
-        
-        if (!ride) {
-            return res.status(404).json({ error: 'Trajet non trouvé' });
-        }
-        
-        if (ride.driverId !== req.userId) {
-            return res.status(403).json({ error: 'Seul le conducteur peut démarrer le trajet' });
-        }
-        
-        if (ride.status !== 'SCHEDULED') {
-            return res.status(400).json({ error: 'Le trajet ne peut pas être démarré' });
-        }
-        
-        await prisma.ride.update({
-            where: { id: id },
-            data: { status: 'ONGOING' }
-        });
-        
-        // ========== NOTIFICATIONS PENDANT LE VOYAGE ==========
-        const startTranslations = {
-            fr: {
-                title: "🚗 Votre trajet a commencé !",
-                message_driver: (dep, dest) => `Votre trajet ${dep} → ${dest} est en cours. Bonne route !`,
-                message_passenger: (dep, dest) => `Votre trajet ${dep} → ${dest} a commencé. Bon voyage !`
-            },
-            en: {
-                title: "🚗 Your ride has started!",
-                message_driver: (dep, dest) => `Your ride ${dep} → ${dest} is in progress. Have a safe trip!`,
-                message_passenger: (dep, dest) => `Your ride ${dep} → ${dest} has started. Have a great trip!`
-            },
-            es: {
-                title: "🚗 ¡Tu viaje ha comenzado!",
-                message_driver: (dep, dest) => `Tu viaje ${dep} → ${dest} está en curso. ¡Buen viaje!`,
-                message_passenger: (dep, dest) => `Tu viaje ${dep} → ${dest} ha comenzado. ¡Buen viaje!`
-            },
-            pt: {
-                title: "🚗 Sua viagem começou!",
-                message_driver: (dep, dest) => `Sua viagem ${dep} → ${dest} está em andamento. Boa viagem!`,
-                message_passenger: (dep, dest) => `Sua viagem ${dep} → ${dest} começou. Boa viagem!`
-            }
-        };
-        
-        // Notification pour le conducteur
-        const driverLang = ride.driver.language || 'fr';
-        const tStartDriver = startTranslations[driverLang];
-        await prisma.notification.create({
-            data: {
-                userId: ride.driverId,
-                type: "ride_started",
-                title: tStartDriver.title,
-                message: tStartDriver.message_driver(ride.departure, ride.destination),
-                data: JSON.stringify({ rideId: id, status: 'ongoing' }),
-                isRead: false
-            }
-        });
-        console.log(`📬 Notification départ envoyée au conducteur (${driverLang})`);
-        
-        // Notifications pour les passagers
-        for (const booking of ride.bookings) {
-            const passengerLang = booking.passenger.language || 'fr';
-            const tStartPassenger = startTranslations[passengerLang];
-            await prisma.notification.create({
-                data: {
-                    userId: booking.passengerId,
-                    type: "ride_started",
-                    title: tStartPassenger.title,
-                    message: tStartPassenger.message_passenger(ride.departure, ride.destination),
-                    data: JSON.stringify({ rideId: id, status: 'ongoing' }),
-                    isRead: false
-                }
-            });
-            console.log(`📬 Notification départ envoyée au passager ${booking.passenger.name} (${passengerLang})`);
-        }
-        
-        res.json({ message: 'Trajet démarré', ride: { ...ride, status: 'ONGOING' } });
-        
-    } catch (error) {
-        console.error('❌ Erreur démarrage trajet:', error);
-        res.status(500).json({ error: 'Erreur lors du démarrage du trajet' });
-    }
-});
-
-// ============ TERMINER LE TRAJET ============
-app.put('/api/rides/:id/complete', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const ride = await prisma.ride.findUnique({
-            where: { id: id },
-            include: {
-                driver: true,
-                bookings: {
-                    where: { status: 'CONFIRMED' },
-                    include: { passenger: true }
-                }
-            }
-        });
-        
-        if (!ride) {
-            return res.status(404).json({ error: 'Trajet non trouvé' });
-        }
-        
-        if (ride.driverId !== req.userId) {
-            return res.status(403).json({ error: 'Seul le conducteur peut terminer le trajet' });
-        }
-        
-        if (ride.status !== 'ONGOING') {
-            return res.status(400).json({ error: 'Le trajet ne peut pas être terminé' });
-        }
-        
-        await prisma.ride.update({
-            where: { id: id },
-            data: { status: 'COMPLETED' }
-        });
-        
-        // ========== NOTIFICATIONS DE FIN DE TRAJET ==========
-        const completeTranslations = {
-            fr: {
-                title: "✅ Votre trajet est terminé",
-                message: (dep, dest) => `Votre trajet ${dep} → ${dest} est terminé. Merci d'avoir voyagé avec Auto-stop !`,
-                rating_title: "⭐ Notez votre conducteur",
-                rating_message: "Votre avis est important. Prenez 2 minutes pour noter votre conducteur !",
-                email_subject: "✅ Votre trajet est terminé - Auto-stop",
-                email_body: (name, dep, dest) => `<p>Votre trajet <strong>${dep} → ${dest}</strong> est terminé.</p><p>⭐ N'oubliez pas de noter votre conducteur dans l'application.</p>`
-            },
-            en: {
-                title: "✅ Your ride is complete",
-                message: (dep, dest) => `Your ride ${dep} → ${dest} is complete. Thank you for traveling with Auto-stop!`,
-                rating_title: "⭐ Rate your driver",
-                rating_message: "Your opinion matters. Take 2 minutes to rate your driver!",
-                email_subject: "✅ Your ride is complete - Auto-stop",
-                email_body: (name, dep, dest) => `<p>Your ride <strong>${dep} → ${dest}</strong> is complete.</p><p>⭐ Don't forget to rate your driver in the app.</p>`
-            },
-            es: {
-                title: "✅ Tu viaje ha terminado",
-                message: (dep, dest) => `Tu viaje ${dep} → ${dest} ha terminado. ¡Gracias por viajar con Auto-stop!`,
-                rating_title: "⭐ Califica a tu conductor",
-                rating_message: "Tu opinión es importante. ¡Tómate 2 minutos para calificar a tu conductor!",
-                email_subject: "✅ Tu viaje ha terminado - Auto-stop",
-                email_body: (name, dep, dest) => `<p>Tu viaje <strong>${dep} → ${dest}</strong> ha terminado.</p><p>⭐ No olvides calificar a tu conductor en la aplicación.</p>`
-            },
-            pt: {
-                title: "✅ Sua viagem terminou",
-                message: (dep, dest) => `Sua viagem ${dep} → ${dest} terminou. Obrigado por viajar com Auto-stop!`,
-                rating_title: "⭐ Avalie seu motorista",
-                rating_message: "Sua opinião é importante. Tire 2 minutos para avaliar seu motorista!",
-                email_subject: "✅ Sua viagem terminou - Auto-stop",
-                email_body: (name, dep, dest) => `<p>Sua viagem <strong>${dep} → ${dest}</strong> terminou.</p><p>⭐ Não se esqueça de avaliar seu motorista no aplicativo.</p>`
-            }
-        };
-        
-        // Annuler les rappels programmés
-        await reminderService.cancelRideReminders(id);
-        
-        // Notification pour le conducteur
-        const driverLang = ride.driver.language || 'fr';
-        const tCompleteDriver = completeTranslations[driverLang];
-        await prisma.notification.create({
-            data: {
-                userId: ride.driverId,
-                type: "ride_completed",
-                title: tCompleteDriver.title,
-                message: tCompleteDriver.message(ride.departure, ride.destination),
-                data: JSON.stringify({ rideId: id, status: 'completed' }),
-                isRead: false
-            }
-        });
-        console.log(`📬 Notification fin trajet envoyée au conducteur (${driverLang})`);
-        
-        // Notifications pour les passagers
-        for (const booking of ride.bookings) {
-            const passengerLang = booking.passenger.language || 'fr';
-            const tCompletePassenger = completeTranslations[passengerLang];
-            
-            await prisma.notification.create({
-                data: {
-                    userId: booking.passengerId,
-                    type: "ride_completed",
-                    title: tCompletePassenger.title,
-                    message: tCompletePassenger.message(ride.departure, ride.destination),
-                    data: JSON.stringify({ rideId: id, status: 'completed' }),
-                    isRead: false
-                }
-            });
-            
-            await prisma.notification.create({
-                data: {
-                    userId: booking.passengerId,
-                    type: "rating_request",
-                    title: tCompletePassenger.rating_title,
-                    message: tCompletePassenger.rating_message,
-                    data: JSON.stringify({ rideId: id, bookingId: booking.id }),
-                    isRead: false
-                }
-            });
-            
-            if (booking.passenger.email) {
-                const emailHtml = `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px;">
-                        <h2 style="color: #FF5A5F;">${tCompletePassenger.title}</h2>
-                        <p>Bonjour ${booking.passenger.name},</p>
-                        ${tCompletePassenger.email_body(booking.passenger.name, ride.departure, ride.destination)}
-                        <hr><p style="color:#888;">Auto-stop - Covoiturage sécurisé</p>
-                    </div>
-                `;
-                await sendEmailWithFallback(booking.passenger.email, tCompletePassenger.email_subject, emailHtml);
-                console.log(`📧 Email fin trajet envoyé à ${booking.passenger.email} (${passengerLang})`);
-            }
-            
-            console.log(`📬 Notifications fin trajet + notation envoyées au passager ${booking.passenger.name} (${passengerLang})`);
-        }
-        
-        res.json({ message: 'Trajet terminé', ride: { ...ride, status: 'COMPLETED' } });
-        
-    } catch (error) {
-        console.error('❌ Erreur terminaison trajet:', error);
-        res.status(500).json({ error: 'Erreur lors de la terminaison du trajet' });
-    }
-});
-
-// ============ ROUTES POUR LES DÉTAILS D'UN TRAJET ============
-
-// Route pour obtenir les détails d'un trajet spécifique
-app.get('/api/rides/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const ride = await prisma.ride.findUnique({
-            where: { id: id },
-            include: {
-                driver: {
-                    select: {
-                        id: true,
-                        name: true,
-                        rating: true,
-                        photoUrl: true,
-                        phone: true,
-                        language: true
-                    }
-                },
-                country: true,
-                bookings: {
-                    where: { status: 'CONFIRMED' },
-                    select: { seats: true }
-                }
-            }
-        });
-        
-        if (!ride) {
-            return res.status(404).json({ error: 'Trajet non trouvé' });
-        }
-        
-        const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
-        
-        const rideWithDetails = {
-            ...ride,
-            bookedSeats: totalBookedSeats,
-            availableSeats: ride.availableSeats
-        };
-        
-        res.json({ ride: rideWithDetails });
-        
-    } catch (error) {
-        console.error('Erreur chargement trajet:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement du trajet' });
-    }
-});
-
-// Route pour obtenir les passagers d'un trajet
-app.get('/api/rides/:id/passengers', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const ride = await prisma.ride.findUnique({
-            where: { id: id }
-        });
-        
-        if (!ride) {
-            return res.status(404).json({ error: 'Trajet non trouvé' });
-        }
-        
-        if (ride.driverId !== req.userId) {
-            return res.status(403).json({ error: 'Non autorisé' });
-        }
-        
-        const bookings = await prisma.booking.findMany({
-            where: { 
-                rideId: id, 
-                status: 'CONFIRMED' 
-            },
-            include: {
-                passenger: {
-                    select: {
-                        id: true,
-                        name: true,
-                        phone: true,
-                        photoUrl: true,
-                        rating: true,
-                        language: true
-                    }
-                }
-            },
-            orderBy: { createdAt: 'asc' }
-        });
-        
-        const passengers = bookings.map(booking => ({
-            id: booking.id,
-            passengerId: booking.passenger.id,
-            name: booking.passenger.name,
-            phone: booking.passenger.phone,
-            photoUrl: booking.passenger.photoUrl,
-            rating: booking.passenger.rating,
-            language: booking.passenger.language,
-            seats: booking.seats,
-            bookerName: booking.bookerName,
-            bookerPhone: booking.bookerPhone,
-            travelerName: booking.travelerName,
-            travelerPhone: booking.travelerPhone,
-            idNumber: booking.idNumber,
-            idExpiryDate: booking.idExpiryDate,
-            amount: booking.amount,
-            paymentMethod: booking.paymentMethod,
-            bookingDate: booking.createdAt
-        }));
+        const token = jwt.sign(
+            { userId: user.id, email: user.email, name: user.name },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+        );
         
         res.json({ 
-            rideId: id,
-            totalPassengers: passengers.length,
-            totalSeatsBooked: passengers.reduce((sum, p) => sum + p.seats, 0),
-            passengers: passengers 
+            success: true, 
+            message: t.success,
+            token,
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                phone: user.phone,
+                isVerified: true,
+                language: userLang
+            }
         });
         
     } catch (error) {
-        console.error('Erreur chargement passagers:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement des passagers' });
+        console.error('❌ Erreur vérification OTP:', error);
+        res.status(500).json({ error: 'Erreur lors de la vérification' });
+    }
+});
+
+// Mot de passe oublié
+app.post('/api/auth/forgot-password', async (req, res) => {
+    try {
+        const { email, language = 'fr' } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ error: "L'email est requis" });
+        }
+        
+        const user = await prisma.user.findUnique({
+            where: { email: email }
+        });
+        
+        if (!user) {
+            return res.json({ 
+                success: true, 
+                message: "Si cet email existe, un code de réinitialisation a été envoyé" 
+            });
+        }
+        
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiresAt = Date.now() + 15 * 60 * 1000;
+        
+        resetOtpStore.set(email, {
+            code: otpCode,
+            expiresAt: otpExpiresAt,
+            attempts: 0,
+            userId: user.id
+        });
+        
+        const translations = {
+            fr: {
+                subject: "🔐 Code de réinitialisation Auto-stop",
+                title: "Code de réinitialisation",
+                greeting: `Bonjour ${user.name},`,
+                message: "Vous avez demandé à réinitialiser votre mot de passe. Voici votre code de vérification :",
+                expiry: "Ce code expire dans 15 minutes.",
+                ignore: "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email."
+            },
+            en: {
+                subject: "🔐 Auto-stop reset code",
+                title: "Reset code",
+                greeting: `Hello ${user.name},`,
+                message: "You requested to reset your password. Here is your verification code:",
+                expiry: "This code expires in 15 minutes.",
+                ignore: "If you didn't request this, ignore this email."
+            },
+            es: {
+                subject: "🔐 Código de reinicio Auto-stop",
+                title: "Código de reinicio",
+                greeting: `Hola ${user.name},`,
+                message: "Solicitaste reiniciar tu contraseña. Aquí está tu código:",
+                expiry: "Este código expira en 15 minutos.",
+                ignore: "Si no solicitaste esto, ignora este email."
+            },
+            pt: {
+                subject: "🔐 Código de redefinição Auto-stop",
+                title: "Código de redefinição",
+                greeting: `Olá ${user.name},`,
+                message: "Você solicitou redefinir sua senha. Aqui está seu código:",
+                expiry: "Este código expira em 15 minutos.",
+                ignore: "Se você não solicitou isso, ignore este e-mail."
+            }
+        };
+        
+        const t = translations[language] || translations.fr;
+        const userLang = user.language || language || 'fr';
+        
+        const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
+                </div>
+                <div style="padding: 20px;">
+                    <h2 style="color: #FF5A5F;">${t.title}</h2>
+                    <p>${t.greeting}</p>
+                    <p>${t.message}</p>
+                    <div style="font-size: 48px; font-weight: bold; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 10px; letter-spacing: 10px; margin: 20px 0;">
+                        ${otpCode}
+                    </div>
+                    <p>${t.expiry}</p>
+                    <p>${t.ignore}</p>
+                    <hr>
+                    <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
+                </div>
+            </div>
+        `;
+        
+        await sendEmailWithFallback(email, t.subject, emailHtml);
+        console.log(`📧 Code OTP ${otpCode} envoyé à ${email} (${userLang})`);
+        
+        res.json({ 
+            success: true, 
+            message: "Un code de réinitialisation a été envoyé par email" 
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur forgot-password:', error);
+        res.status(500).json({ error: "Erreur lors du traitement" });
+    }
+});
+
+// Réinitialiser mot de passe avec OTP
+app.post('/api/auth/reset-password-with-otp', async (req, res) => {
+    try {
+        const { email, otpCode, newPassword, confirmPassword, language = 'fr' } = req.body;
+        
+        const translations = {
+            fr: {
+                missing_fields: "Email, code OTP et nouveau mot de passe requis",
+                password_mismatch: "Les mots de passe ne correspondent pas",
+                password_too_short: "Le mot de passe doit contenir au moins 6 caractères",
+                invalid_code: "Code invalide ou expiré",
+                too_many_attempts: "Trop de tentatives. Veuillez refaire une demande",
+                success: "Mot de passe réinitialisé avec succès"
+            },
+            en: {
+                missing_fields: "Email, OTP code and new password required",
+                password_mismatch: "Passwords do not match",
+                password_too_short: "Password must be at least 6 characters",
+                invalid_code: "Invalid or expired code",
+                too_many_attempts: "Too many attempts. Please request a new code",
+                success: "Password reset successfully"
+            },
+            es: {
+                missing_fields: "Email, código OTP y nueva contraseña requeridos",
+                password_mismatch: "Las contraseñas no coinciden",
+                password_too_short: "La contraseña debe tener al menos 6 caracteres",
+                invalid_code: "Código inválido o expirado",
+                too_many_attempts: "Demasiados intentos. Solicita un nuevo código",
+                success: "Contraseña restablecida con éxito"
+            },
+            pt: {
+                missing_fields: "Email, código OTP e nova senha são obrigatórios",
+                password_mismatch: "As senhas não coincidem",
+                password_too_short: "A senha deve ter pelo menos 6 caracteres",
+                invalid_code: "Código inválido ou expirado",
+                too_many_attempts: "Muitas tentativas. Solicite um novo código",
+                success: "Senha redefinida com sucesso"
+            }
+        };
+        
+        const t = translations[language] || translations.fr;
+        
+        if (!email || !otpCode || !newPassword) {
+            return res.status(400).json({ error: t.missing_fields });
+        }
+        
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ error: t.password_mismatch });
+        }
+        
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: t.password_too_short });
+        }
+        
+        const otpData = resetOtpStore.get(email);
+        
+        if (!otpData) {
+            return res.status(400).json({ error: t.invalid_code });
+        }
+        
+        if (Date.now() > otpData.expiresAt) {
+            resetOtpStore.delete(email);
+            return res.status(400).json({ error: t.invalid_code });
+        }
+        
+        if (otpData.attempts >= 3) {
+            resetOtpStore.delete(email);
+            return res.status(400).json({ error: t.too_many_attempts });
+        }
+        
+        if (otpData.code !== otpCode) {
+            otpData.attempts++;
+            resetOtpStore.set(email, otpData);
+            return res.status(400).json({ error: t.invalid_code });
+        }
+        
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        await prisma.user.update({
+            where: { id: otpData.userId },
+            data: { password: hashedPassword }
+        });
+        
+        resetOtpStore.delete(email);
+        
+        console.log(`✅ Mot de passe réinitialisé pour ${email}`);
+        
+        res.json({ 
+            success: true, 
+            message: t.success 
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur reset-password-with-otp:', error);
+        res.status(500).json({ error: "Erreur lors de la réinitialisation" });
     }
 });
 
@@ -1887,8 +1067,405 @@ app.get('/api/users/:id/public', async (req, res) => {
     }
 });
 
-// ============ ROUTES POUR LA NOTATION ============
+// ============ ROUTES PAIEMENT UTILISATEUR ============
 
+app.get('/api/users/payment-info', verifyToken, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: {
+                paymentMethod: true,
+                mobileMoneyNumber: true,
+                cardNumber: true,
+                cardExpiry: true,
+                cardCvv: true,
+                bankName: true,
+                accountNumber: true
+            }
+        });
+        
+        res.json({ 
+            paymentInfo: {
+                method: user?.paymentMethod || 'mobile_money',
+                mobileMoneyNumber: user?.mobileMoneyNumber || '',
+                cardNumber: user?.cardNumber || '',
+                cardExpiry: user?.cardExpiry || '',
+                cardCvv: user?.cardCvv || '',
+                bankName: user?.bankName || '',
+                accountNumber: user?.accountNumber || ''
+            }
+        });
+    } catch (error) {
+        console.error('❌ Erreur get payment info:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement' });
+    }
+});
+
+app.put('/api/users/payment-info', verifyToken, async (req, res) => {
+    try {
+        const { 
+            method, 
+            mobileMoneyNumber, 
+            cardNumber, 
+            cardExpiry, 
+            cardCvv,
+            bankName,
+            accountNumber 
+        } = req.body;
+        
+        const updateData = {
+            paymentMethod: method
+        };
+        
+        if (method === 'mobile_money') {
+            updateData.mobileMoneyNumber = mobileMoneyNumber;
+            updateData.cardNumber = null;
+            updateData.cardExpiry = null;
+            updateData.cardCvv = null;
+            updateData.bankName = null;
+            updateData.accountNumber = null;
+        } else if (method === 'bank_card') {
+            updateData.cardNumber = cardNumber;
+            updateData.cardExpiry = cardExpiry;
+            updateData.cardCvv = cardCvv;
+            updateData.mobileMoneyNumber = null;
+            updateData.bankName = null;
+            updateData.accountNumber = null;
+        } else if (method === 'bank_transfer') {
+            updateData.bankName = bankName;
+            updateData.accountNumber = accountNumber;
+            updateData.mobileMoneyNumber = null;
+            updateData.cardNumber = null;
+            updateData.cardExpiry = null;
+            updateData.cardCvv = null;
+        }
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: updateData
+        });
+        
+        res.json({ success: true, message: 'Informations de paiement mises à jour' });
+    } catch (error) {
+        console.error('❌ Erreur update payment info:', error);
+        res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+    }
+});
+
+// ============ ROUTES PUSH NOTIFICATIONS ============
+
+app.post('/api/users/push-token', verifyToken, async (req, res) => {
+    try {
+        const { pushToken } = req.body;
+        
+        if (!pushToken) {
+            return res.status(400).json({ error: 'Token push requis' });
+        }
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: { expoPushToken: pushToken }
+        });
+        
+        console.log(`📱 Token push enregistré pour ${req.userId}`);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ Erreur enregistrement push token:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// ============ ROUTES TELEGRAM ============
+
+app.post('/api/users/link-telegram', verifyToken, async (req, res) => {
+    try {
+        const { telegramChatId } = req.body;
+        const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+        
+        if (!telegramChatId) {
+            return res.status(400).json({ error: 'ID Telegram requis' });
+        }
+        
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { language: true, name: true, email: true, telegramChatId: true }
+        });
+        
+        const userLang = user?.language || 'fr';
+        
+        if (user?.telegramChatId) {
+            return res.status(400).json({ error: 'Compte Telegram déjà lié' });
+        }
+        
+        const testResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chat_id: telegramChatId,
+                text: "🔔 Votre compte Telegram a été lié avec succès à Auto-stop.",
+                parse_mode: 'Markdown'
+            })
+        });
+        
+        const testData = await testResponse.json();
+        
+        if (!testData.ok) {
+            return res.status(400).json({ error: 'ID Telegram invalide' });
+        }
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: { telegramChatId: telegramChatId.toString() }
+        });
+        
+        console.log(`✅ Utilisateur ${req.userId} a lié Telegram: ${telegramChatId} (${userLang})`);
+        
+        res.json({ success: true, message: 'Telegram lié avec succès' });
+        
+    } catch (error) {
+        console.error('❌ Erreur lien Telegram:', error);
+        res.status(500).json({ error: 'Erreur lors du lien Telegram' });
+    }
+});
+
+app.get('/api/users/telegram-id', verifyToken, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { telegramChatId: true }
+        });
+        
+        res.json({ telegramChatId: user?.telegramChatId || null });
+    } catch (error) {
+        console.error('❌ Erreur getTelegramId:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+app.delete('/api/users/unlink-telegram', verifyToken, async (req, res) => {
+    try {
+        const user = await prisma.user.findUnique({
+            where: { id: req.userId },
+            select: { telegramChatId: true, language: true }
+        });
+        
+        if (!user?.telegramChatId) {
+            return res.status(400).json({ error: 'Aucun compte Telegram lié' });
+        }
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: { telegramChatId: null }
+        });
+        
+        res.json({ success: true, message: 'Telegram dissocié avec succès' });
+    } catch (error) {
+        console.error('❌ Erreur dissociation Telegram:', error);
+        res.status(500).json({ error: 'Erreur lors de la dissociation' });
+    }
+});
+
+// ============ ROUTES TRAJETS (SANS PARAMÈTRES - SPÉCIFIQUES) ============
+
+// Route pour les trajets disponibles
+app.get('/api/rides', async (req, res) => {
+    try {
+        const rides = await prisma.ride.findMany({
+            where: { 
+                status: 'SCHEDULED',
+                date: { gte: new Date() },
+                isHidden: false
+            },
+            include: {
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        rating: true,
+                        photoUrl: true,
+                        language: true
+                    }
+                },
+                country: true,
+                bookings: {
+                    where: { status: 'CONFIRMED' },
+                    select: { seats: true }
+                }
+            },
+            orderBy: { date: 'asc' }
+        });
+        
+        const ridesWithStats = rides.map(ride => {
+            const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
+            return {
+                ...ride,
+                totalSeats: ride.totalSeats || ride.availableSeats + totalBookedSeats,
+                availableSeats: ride.availableSeats,
+                bookedSeats: totalBookedSeats
+            };
+        });
+        
+        res.json({ rides: ridesWithStats });
+    } catch (error) {
+        console.error('Erreur:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement des trajets' });
+    }
+});
+
+// RECHERCHE DYNAMIQUE - Version optimisée (À mettre AVANT /api/rides/:id)
+app.get('/api/rides/dynamic-search', async (req, res) => {
+    try {
+        let { departure = '', destination = '', date, minPrice, maxPrice } = req.query;
+        
+        console.log('🔍 Recherche reçue:', { departure, destination, date, minPrice, maxPrice });
+        
+        const whereClause = {
+            status: 'SCHEDULED',
+            isHidden: false,
+            date: { gte: new Date() }
+        };
+        
+        if (date) {
+            const searchDate = new Date(date);
+            const nextDay = new Date(searchDate);
+            nextDay.setDate(nextDay.getDate() + 1);
+            whereClause.date = {
+                gte: searchDate,
+                lt: nextDay
+            };
+        }
+        
+        if (minPrice || maxPrice) {
+            whereClause.price = {};
+            if (minPrice) whereClause.price.gte = parseFloat(minPrice);
+            if (maxPrice) whereClause.price.lte = parseFloat(maxPrice);
+        }
+        
+        if (departure && departure.trim() !== '') {
+            whereClause.departure = {
+                contains: departure.trim(),
+                mode: 'insensitive'
+            };
+        }
+        
+        if (destination && destination.trim() !== '') {
+            whereClause.destination = {
+                contains: destination.trim(),
+                mode: 'insensitive'
+            };
+        }
+        
+        const rides = await prisma.ride.findMany({
+            where: whereClause,
+            include: {
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        rating: true,
+                        photoUrl: true,
+                        language: true
+                    }
+                },
+                bookings: {
+                    where: { status: 'CONFIRMED' },
+                    select: { seats: true }
+                }
+            },
+            orderBy: { date: 'asc' }
+        });
+        
+        const ridesWithStats = rides.map(ride => {
+            const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
+            return {
+                ...ride,
+                totalSeats: ride.totalSeats || ride.availableSeats + totalBookedSeats,
+                availableSeats: ride.availableSeats,
+                bookedSeats: totalBookedSeats
+            };
+        });
+        
+        console.log(`📊 ${ridesWithStats.length} trajets trouvés`);
+        res.json({ 
+            success: true,
+            count: ridesWithStats.length,
+            rides: ridesWithStats 
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur recherche dynamique:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Erreur lors de la recherche',
+            details: error.message 
+        });
+    }
+});
+
+// Trajets publiés par l'utilisateur
+app.get('/api/rides/my-published', verifyToken, async (req, res) => {
+    try {
+        const rides = await prisma.ride.findMany({
+            where: { driverId: req.userId },
+            include: {
+                driver: { select: { name: true, rating: true, language: true } },
+                bookings: {
+                    include: {
+                        passenger: { select: { id: true, name: true, phone: true, photoUrl: true } }
+                    }
+                }
+            },
+            orderBy: { date: 'desc' }
+        });
+        
+        res.json({ rides });
+    } catch (error) {
+        console.error('Erreur:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement' });
+    }
+});
+
+// Réservations de l'utilisateur
+app.get('/api/rides/my-bookings', verifyToken, async (req, res) => {
+    try {
+        const bookings = await prisma.booking.findMany({
+            where: { passengerId: req.userId },
+            include: {
+                ride: {
+                    include: {
+                        driver: {
+                            select: { name: true, rating: true, photoUrl: true, language: true }
+                        }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        
+        const rides = bookings.map(b => ({
+            bookingId: b.id,
+            id: b.ride.id,
+            departure: b.ride.departure,
+            destination: b.ride.destination,
+            date: b.ride.date,
+            price: b.ride.price,
+            availableSeats: b.ride.availableSeats,
+            driverName: b.ride.driver.name,
+            driverPhoto: b.ride.driver.photoUrl,
+            driverRating: b.ride.driver.rating,
+            bookingStatus: b.status,
+            bookingDate: b.createdAt,
+            seats: b.seats
+        }));
+        
+        res.json({ rides });
+    } catch (error) {
+        console.error('Erreur:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement' });
+    }
+});
+
+// Trajets notables
 app.get('/api/rides/rateable', verifyToken, async (req, res) => {
     try {
         const now = new Date();
@@ -1926,6 +1503,356 @@ app.get('/api/rides/rateable', verifyToken, async (req, res) => {
     }
 });
 
+// Auto-complétion départs
+app.get('/api/rides/autocomplete/departures', async (req, res) => {
+    try {
+        const { query = '' } = req.query;
+        
+        const rides = await prisma.ride.findMany({
+            where: {
+                status: 'SCHEDULED',
+                date: { gte: new Date() },
+                isHidden: false,
+                departure: {
+                    contains: query,
+                    mode: 'insensitive'
+                }
+            },
+            select: { departure: true },
+            distinct: ['departure'],
+            take: 10
+        });
+        
+        res.json({ suggestions: rides.map(r => r.departure) });
+    } catch (error) {
+        console.error('Erreur autocomplete départ:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// Auto-complétion destinations
+app.get('/api/rides/autocomplete/destinations', async (req, res) => {
+    try {
+        const { query = '', departure = '' } = req.query;
+        
+        const rides = await prisma.ride.findMany({
+            where: {
+                status: 'SCHEDULED',
+                date: { gte: new Date() },
+                isHidden: false,
+                departure: departure ? { contains: departure, mode: 'insensitive' } : undefined,
+                destination: {
+                    contains: query,
+                    mode: 'insensitive'
+                }
+            },
+            select: { destination: true },
+            distinct: ['destination'],
+            take: 10
+        });
+        
+        res.json({ suggestions: rides.map(r => r.destination) });
+    } catch (error) {
+        console.error('Erreur autocomplete destination:', error);
+        res.status(500).json({ error: 'Erreur serveur' });
+    }
+});
+
+// ============ ROUTES TRAJETS (AVEC PARAMÈTRES) ============
+
+// Détails d'un trajet spécifique
+app.get('/api/rides/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const ride = await prisma.ride.findUnique({
+            where: { id: id },
+            include: {
+                driver: {
+                    select: {
+                        id: true,
+                        name: true,
+                        rating: true,
+                        photoUrl: true,
+                        phone: true,
+                        language: true
+                    }
+                },
+                country: true,
+                bookings: {
+                    where: { status: 'CONFIRMED' },
+                    select: { seats: true }
+                }
+            }
+        });
+        
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+        
+        const totalBookedSeats = ride.bookings.reduce((sum, booking) => sum + booking.seats, 0);
+        
+        const rideWithDetails = {
+            ...ride,
+            bookedSeats: totalBookedSeats,
+            availableSeats: ride.availableSeats
+        };
+        
+        res.json({ ride: rideWithDetails });
+        
+    } catch (error) {
+        console.error('Erreur chargement trajet:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement du trajet' });
+    }
+});
+
+// Passagers d'un trajet
+app.get('/api/rides/:id/passengers', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const ride = await prisma.ride.findUnique({
+            where: { id: id }
+        });
+        
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+        
+        if (ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+        
+        const bookings = await prisma.booking.findMany({
+            where: { 
+                rideId: id, 
+                status: 'CONFIRMED' 
+            },
+            include: {
+                passenger: {
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                        photoUrl: true,
+                        rating: true,
+                        language: true
+                    }
+                }
+            },
+            orderBy: { createdAt: 'asc' }
+        });
+        
+        const passengers = bookings.map(booking => ({
+            id: booking.id,
+            passengerId: booking.passenger.id,
+            name: booking.passenger.name,
+            phone: booking.passenger.phone,
+            photoUrl: booking.passenger.photoUrl,
+            rating: booking.passenger.rating,
+            language: booking.passenger.language,
+            seats: booking.seats,
+            bookerName: booking.bookerName,
+            bookerPhone: booking.bookerPhone,
+            travelerName: booking.travelerName,
+            travelerPhone: booking.travelerPhone,
+            idNumber: booking.idNumber,
+            idExpiryDate: booking.idExpiryDate,
+            amount: booking.amount,
+            paymentMethod: booking.paymentMethod,
+            bookingDate: booking.createdAt
+        }));
+        
+        res.json({ 
+            rideId: id,
+            totalPassengers: passengers.length,
+            totalSeatsBooked: passengers.reduce((sum, p) => sum + p.seats, 0),
+            passengers: passengers 
+        });
+        
+    } catch (error) {
+        console.error('Erreur chargement passagers:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement des passagers' });
+    }
+});
+
+// Publier un trajet
+app.post('/api/rides', verifyToken, async (req, res) => {
+    try {
+        const { 
+            departure, 
+            meetingPoint, 
+            destination, 
+            dropoffPoint, 
+            date, 
+            availableSeats, 
+            price, 
+            vehicleType, 
+            vehicleBrand,
+            licensePlate,
+            estimatedDuration,
+            arrivalTime,
+            isRecurring,
+            onlinePaymentPercent,
+            displayCurrency,
+            receptionMethod,
+            mobileMoneyNumber,
+            bankCardNumber,
+            bankCardExpiry,
+            bankCardCvv
+        } = req.body;
+        
+        console.log('📝 Publication trajet reçue:', { departure, destination, price });
+        
+        if (!departure || !destination || !availableSeats || !price || !vehicleType || !vehicleBrand) {
+            return res.status(400).json({ error: 'Champs obligatoires manquants' });
+        }
+        
+        const user = await prisma.user.findUnique({ 
+            where: { id: req.userId },
+            include: { country: true }
+        });
+        
+        if (!user) {
+            return res.status(401).json({ error: 'Utilisateur non trouvé' });
+        }
+        
+        const ride = await prisma.ride.create({
+            data: {
+                departure,
+                meetingPoint: meetingPoint || null,
+                destination,
+                dropoffPoint: dropoffPoint || null,
+                date: new Date(date),
+                availableSeats: parseInt(availableSeats),
+                price: parseFloat(price),
+                vehicleType,
+                vehicleBrand,
+                licensePlate: licensePlate || null,
+                estimatedDuration: estimatedDuration ? parseInt(estimatedDuration) : null,
+                arrivalTime: arrivalTime ? new Date(arrivalTime) : null,
+                isRecurring: isRecurring || false,
+                driverId: user.id,
+                countryId: user.countryId,
+                status: 'SCHEDULED',
+                totalSeats: parseInt(availableSeats),
+                onlinePaymentPercent: onlinePaymentPercent || 100,
+                displayCurrency: displayCurrency || 'XAF',
+                receptionMethod: receptionMethod || 'mobile_money',
+                receiverPhone: receptionMethod === 'mobile_money' ? mobileMoneyNumber : null,
+                receiverCardNumber: receptionMethod === 'bank_card' ? bankCardNumber : null,
+                receiverCardExpiry: receptionMethod === 'bank_card' ? bankCardExpiry : null,
+                receiverCardCvv: receptionMethod === 'bank_card' ? bankCardCvv : null
+            }
+        });
+        
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { totalTrips: { increment: 1 } }
+        });
+        
+        console.log('✅ Trajet créé:', ride.id);
+        
+        try {
+            await reminderService.scheduleRideReminders(ride.id);
+            console.log(`⏰ Rappels programmés pour le trajet ${ride.id}`);
+        } catch (reminderError) {
+            console.error('❌ Erreur programmation rappels:', reminderError.message);
+        }
+        
+        res.json({ message: 'Trajet publié avec succès', ride });
+        
+    } catch (error) {
+        console.error('❌ Erreur publication trajet:', error);
+        res.status(500).json({ error: 'Erreur lors de la publication: ' + error.message });
+    }
+});
+
+// Démarrer un trajet
+app.put('/api/rides/:id/start', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const ride = await prisma.ride.findUnique({
+            where: { id: id },
+            include: {
+                driver: true,
+                bookings: {
+                    where: { status: 'CONFIRMED' },
+                    include: { passenger: true }
+                }
+            }
+        });
+        
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+        
+        if (ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Seul le conducteur peut démarrer le trajet' });
+        }
+        
+        if (ride.status !== 'SCHEDULED') {
+            return res.status(400).json({ error: 'Le trajet ne peut pas être démarré' });
+        }
+        
+        await prisma.ride.update({
+            where: { id: id },
+            data: { status: 'ONGOING' }
+        });
+        
+        res.json({ message: 'Trajet démarré', ride: { ...ride, status: 'ONGOING' } });
+        
+    } catch (error) {
+        console.error('❌ Erreur démarrage trajet:', error);
+        res.status(500).json({ error: 'Erreur lors du démarrage du trajet' });
+    }
+});
+
+// Terminer un trajet
+app.put('/api/rides/:id/complete', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const ride = await prisma.ride.findUnique({
+            where: { id: id },
+            include: {
+                driver: true,
+                bookings: {
+                    where: { status: 'CONFIRMED' },
+                    include: { passenger: true }
+                }
+            }
+        });
+        
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+        
+        if (ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Seul le conducteur peut terminer le trajet' });
+        }
+        
+        if (ride.status !== 'ONGOING') {
+            return res.status(400).json({ error: 'Le trajet ne peut pas être terminé' });
+        }
+        
+        await prisma.ride.update({
+            where: { id: id },
+            data: { status: 'COMPLETED' }
+        });
+        
+        await reminderService.cancelRideReminders(id);
+        
+        res.json({ message: 'Trajet terminé', ride: { ...ride, status: 'COMPLETED' } });
+        
+    } catch (error) {
+        console.error('❌ Erreur terminaison trajet:', error);
+        res.status(500).json({ error: 'Erreur lors de la terminaison du trajet' });
+    }
+});
+
+// Noter un trajet
 app.post('/api/rides/:rideId/rate', verifyToken, async (req, res) => {
     try {
         const { rideId } = req.params;
@@ -2006,28 +1933,280 @@ app.post('/api/rides/:rideId/rate', verifyToken, async (req, res) => {
     }
 });
 
-app.get('/api/users/:id/reviews', async (req, res) => {
+// ============ ROUTES RÉSERVATIONS ============
+
+// Créer une réservation
+app.post('/api/bookings', verifyToken, async (req, res) => {
+    try {
+        const { 
+            rideId, 
+            seats, 
+            bookerName, 
+            bookerPhone, 
+            travelerName, 
+            travelerPhone, 
+            idNumber, 
+            idExpiryDate, 
+            amount, 
+            paymentMethod 
+        } = req.body;
+
+        console.log('📝 Création réservation reçue:', { rideId, seats, bookerName });
+
+        const ride = await prisma.ride.findUnique({
+            where: { id: rideId }
+        });
+
+        if (!ride) {
+            return res.status(404).json({ error: 'Trajet non trouvé' });
+        }
+
+        if (ride.availableSeats < seats) {
+            return res.status(400).json({ error: 'Plus assez de places disponibles' });
+        }
+
+        if (ride.driverId === req.userId) {
+            return res.status(400).json({ error: 'Vous ne pouvez pas réserver votre propre trajet' });
+        }
+
+        const booking = await prisma.booking.create({
+            data: {
+                rideId: rideId,
+                passengerId: req.userId,
+                seats: seats,
+                status: 'CONFIRMED',
+                bookerName: bookerName || null,
+                bookerPhone: bookerPhone || null,
+                travelerName: travelerName || null,
+                travelerPhone: travelerPhone || null,
+                idNumber: idNumber || null,
+                idExpiryDate: idExpiryDate ? new Date(idExpiryDate) : null,
+                amount: amount || ride.price * seats,
+                paymentMethod: paymentMethod || null
+            }
+        });
+
+        await prisma.ride.update({
+            where: { id: rideId },
+            data: { availableSeats: { decrement: seats } }
+        });
+
+        console.log('✅ Réservation créée:', booking.id);
+        
+        res.json({ message: 'Réservation confirmée', booking });
+
+    } catch (error) {
+        console.error('❌ Erreur création réservation:', error);
+        res.status(500).json({ error: 'Erreur lors de la réservation: ' + error.message });
+    }
+});
+
+// Annuler une réservation
+app.put('/api/bookings/:id/cancel', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        console.log('📝 Annulation réservation ID:', id);
+        
+        const booking = await prisma.booking.findUnique({
+            where: { id: id },
+            include: { ride: true }
+        });
+        
+        if (!booking) {
+            return res.status(404).json({ error: 'Réservation non trouvée' });
+        }
+        
+        if (booking.passengerId !== req.userId) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+        
+        if (booking.status === 'CANCELLED') {
+            return res.status(400).json({ error: 'Réservation déjà annulée' });
+        }
+        
+        if (new Date(booking.ride.date) < new Date()) {
+            return res.status(400).json({ error: 'Impossible d\'annuler un trajet déjà passé' });
+        }
+        
+        const updatedBooking = await prisma.booking.update({
+            where: { id: id },
+            data: { status: 'CANCELLED' }
+        });
+        
+        await prisma.ride.update({
+            where: { id: booking.rideId },
+            data: { availableSeats: { increment: booking.seats } }
+        });
+        
+        const remainingBookings = await prisma.booking.count({
+            where: { rideId: booking.rideId, status: 'CONFIRMED' }
+        });
+        
+        if (remainingBookings === 0) {
+            try {
+                await reminderService.cancelRideReminders(booking.rideId);
+                console.log(`⏰ Rappels annulés pour le trajet ${booking.rideId} (plus de passagers)`);
+            } catch (reminderError) {
+                console.error('❌ Erreur annulation rappels:', reminderError.message);
+            }
+        }
+        
+        res.json({ message: 'Réservation annulée avec succès', booking: updatedBooking });
+    } catch (error) {
+        console.error('Erreur annulation:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'annulation' });
+    }
+});
+
+// Confirmer paiement en espèces
+app.post('/api/bookings/:id/confirm-cash', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { amount } = req.body;
+        
+        const booking = await prisma.booking.findUnique({
+            where: { id: id },
+            include: { ride: true }
+        });
+        
+        if (!booking) {
+            return res.status(404).json({ error: 'Réservation non trouvée' });
+        }
+        
+        if (booking.ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+        
+        const remainingCash = (booking.cashAmount || 0) - (booking.cashAmountPaid || 0);
+        if (amount > remainingCash) {
+            return res.status(400).json({ error: 'Le montant dépasse le montant restant dû' });
+        }
+        
+        const updatedBooking = await prisma.booking.update({
+            where: { id: id },
+            data: {
+                cashAmountPaid: {
+                    increment: amount
+                },
+                cashPaymentConfirmed: true,
+                cashPaymentDate: new Date()
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Paiement espèces confirmé',
+            booking: updatedBooking
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur confirm-cash:', error);
+        res.status(500).json({ error: 'Erreur lors de la confirmation' });
+    }
+});
+
+// Libérer paiement en ligne
+app.post('/api/bookings/:id/release-payment', verifyToken, async (req, res) => {
     try {
         const { id } = req.params;
         
-        const reviews = await prisma.review.findMany({
-            where: { targetId: id },
-            include: {
-                reviewer: {
-                    select: { id: true, name: true, photoUrl: true }
-                },
+        const booking = await prisma.booking.findUnique({
+            where: { id: id },
+            include: { 
                 ride: {
-                    select: { departure: true, destination: true, date: true }
+                    include: { driver: true }
                 }
-            },
-            orderBy: { createdAt: 'desc' }
+            }
         });
         
-        res.json({ reviews });
+        if (!booking) {
+            return res.status(404).json({ error: 'Réservation non trouvée' });
+        }
+        
+        if (booking.ride.status !== 'COMPLETED') {
+            return res.status(400).json({ error: 'Le trajet n\'est pas encore terminé' });
+        }
+        
+        if (booking.ride.driverId !== req.userId) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+        
+        if (booking.paymentStatus === 'RELEASED') {
+            return res.status(400).json({ error: 'Paiement déjà libéré' });
+        }
+        
+        await prisma.booking.update({
+            where: { id: id },
+            data: {
+                paymentStatus: 'RELEASED',
+                paymentReleasedAt: new Date(),
+                payoutReference: `RELEASED_${booking.id}_${Date.now()}`
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            message: 'Paiement libéré avec succès'
+        });
         
     } catch (error) {
-        console.error('Erreur chargement avis:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement des avis' });
+        console.error('❌ Erreur release-payment:', error);
+        res.status(500).json({ error: 'Erreur lors de la libération du paiement' });
+    }
+});
+
+// Statut de paiement d'une réservation
+app.get('/api/bookings/:id/payment-status', verifyToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const booking = await prisma.booking.findUnique({
+            where: { id: id },
+            select: {
+                id: true,
+                passengerId: true,
+                onlineAmount: true,
+                cashAmount: true,
+                cashAmountPaid: true,
+                cashPaymentConfirmed: true,
+                paymentStatus: true,
+                paymentReleasedAt: true,
+                ride: {
+                    select: {
+                        driverId: true,
+                        status: true
+                    }
+                }
+            }
+        });
+        
+        if (!booking) {
+            return res.status(404).json({ error: 'Réservation non trouvée' });
+        }
+        
+        const isPassenger = booking.passengerId === req.userId;
+        const isDriver = booking.ride.driverId === req.userId;
+        
+        if (!isPassenger && !isDriver) {
+            return res.status(403).json({ error: 'Non autorisé' });
+        }
+        
+        res.json({
+            paymentStatus: {
+                onlineAmount: booking.onlineAmount,
+                onlinePaid: booking.paymentStatus === 'RELEASED',
+                onlineReleasedAt: booking.paymentReleasedAt,
+                cashAmount: booking.cashAmount || 0,
+                cashPaid: booking.cashAmountPaid || 0,
+                cashRemaining: (booking.cashAmount || 0) - (booking.cashAmountPaid || 0),
+                cashFullyPaid: booking.cashPaymentConfirmed,
+                overallStatus: booking.paymentStatus
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur payment-status:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement' });
     }
 });
 
@@ -2242,665 +2421,35 @@ app.get('/api/messages/unread/:conversationId', verifyToken, async (req, res) =>
     }
 });
 
-// ============ MOT DE PASSE OUBLIÉ AVEC OTP ============
-const crypto = require('crypto');
+// ============ ROUTES AVIS ============
 
-// Stockage temporaire des codes OTP pour réinitialisation
+app.get('/api/users/:id/reviews', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const reviews = await prisma.review.findMany({
+            where: { targetId: id },
+            include: {
+                reviewer: {
+                    select: { id: true, name: true, photoUrl: true }
+                },
+                ride: {
+                    select: { departure: true, destination: true, date: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        
+        res.json({ reviews });
+        
+    } catch (error) {
+        console.error('Erreur chargement avis:', error);
+        res.status(500).json({ error: 'Erreur lors du chargement des avis' });
+    }
+});
+
+// ============ STOCKAGE OTP PASSWORD RESET ==========
 const resetOtpStore = new Map();
-
-// 1️⃣ ROUTE POUR ENVOYER LE CODE OTP
-app.post('/api/auth/forgot-password', async (req, res) => {
-    try {
-        const { email, language = 'fr' } = req.body;
-        
-        if (!email) {
-            return res.status(400).json({ error: "L'email est requis" });
-        }
-        
-        const user = await prisma.user.findUnique({
-            where: { email: email }
-        });
-        
-        if (!user) {
-            // Sécurité : on ne révèle pas que l'email n'existe pas
-            return res.json({ 
-                success: true, 
-                message: "Si cet email existe, un code de réinitialisation a été envoyé" 
-            });
-        }
-        
-        // Générer un code OTP à 6 chiffres
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const otpExpiresAt = Date.now() + 15 * 60 * 1000; // 15 minutes
-        
-        // Stocker le code
-        resetOtpStore.set(email, {
-            code: otpCode,
-            expiresAt: otpExpiresAt,
-            attempts: 0,
-            userId: user.id
-        });
-        
-        // Traductions
-        const translations = {
-            fr: {
-                subject: "🔐 Code de réinitialisation Auto-stop",
-                title: "Code de réinitialisation",
-                greeting: `Bonjour ${user.name},`,
-                message: "Vous avez demandé à réinitialiser votre mot de passe. Voici votre code de vérification :",
-                expiry: "Ce code expire dans 15 minutes.",
-                ignore: "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.",
-                telegram_message: `🔐 *Code de réinitialisation Auto-stop*\n\nBonjour ${user.name},\n\nVotre code de réinitialisation est : *${otpCode}*\n\nCe code expire dans 15 minutes.`
-            },
-            en: {
-                subject: "🔐 Auto-stop reset code",
-                title: "Reset code",
-                greeting: `Hello ${user.name},`,
-                message: "You requested to reset your password. Here is your verification code:",
-                expiry: "This code expires in 15 minutes.",
-                ignore: "If you didn't request this, ignore this email.",
-                telegram_message: `🔐 *Auto-stop reset code*\n\nHello ${user.name},\n\nYour reset code is: *${otpCode}*\n\nThis code expires in 15 minutes.`
-            },
-            es: {
-                subject: "🔐 Código de reinicio Auto-stop",
-                title: "Código de reinicio",
-                greeting: `Hola ${user.name},`,
-                message: "Solicitaste reiniciar tu contraseña. Aquí está tu código:",
-                expiry: "Este código expira en 15 minutos.",
-                ignore: "Si no solicitaste esto, ignora este email.",
-                telegram_message: `🔐 *Código de reinicio Auto-stop*\n\nHola ${user.name},\n\nTu código es: *${otpCode}*\n\nEste código expira en 15 minutos.`
-            },
-            pt: {
-                subject: "🔐 Código de redefinição Auto-stop",
-                title: "Código de redefinição",
-                greeting: `Olá ${user.name},`,
-                message: "Você solicitou redefinir sua senha. Aqui está seu código:",
-                expiry: "Este código expira em 15 minutos.",
-                ignore: "Se você não solicitou isso, ignore este e-mail.",
-                telegram_message: `🔐 *Código de redefinição Auto-stop*\n\nOlá ${user.name},\n\nSeu código é: *${otpCode}*\n\nEste código expira em 15 minutos.`
-            }
-        };
-        
-        const t = translations[language] || translations.fr;
-        const userLang = user.language || language || 'fr';
-        
-        // Envoi par email
-        const emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <div style="background-color: #FF5A5F; padding: 20px; text-align: center;">
-                    <h1 style="color: white; margin: 0;">🚗 Auto-stop</h1>
-                </div>
-                <div style="padding: 20px;">
-                    <h2 style="color: #FF5A5F;">${t.title}</h2>
-                    <p>${t.greeting}</p>
-                    <p>${t.message}</p>
-                    <div style="font-size: 48px; font-weight: bold; text-align: center; padding: 20px; background: #f5f5f5; border-radius: 10px; letter-spacing: 10px; margin: 20px 0;">
-                        ${otpCode}
-                    </div>
-                    <p>${t.expiry}</p>
-                    <p>${t.ignore}</p>
-                    <hr>
-                    <p style="color: #888; font-size: 12px;">Auto-stop - Covoiturage sécurisé</p>
-                </div>
-            </div>
-        `;
-        
-        await sendEmailWithFallback(email, t.subject, emailHtml);
-        console.log(`📧 Code OTP ${otpCode} envoyé à ${email} (${userLang})`);
-        
-        // Envoi par Telegram si lié
-        if (user.telegramChatId) {
-            try {
-                const { sendTelegramMessage } = require('./services/telegramService');
-                await sendTelegramMessage(user.telegramChatId, t.telegram_message);
-                console.log(`🤖 Code OTP envoyé à Telegram ${user.telegramChatId}`);
-            } catch (telegramError) {
-                console.error('❌ Erreur envoi Telegram:', telegramError.message);
-            }
-        }
-        
-        res.json({ 
-            success: true, 
-            message: "Un code de réinitialisation a été envoyé par email" 
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur forgot-password:', error);
-        res.status(500).json({ error: "Erreur lors du traitement" });
-    }
-});
-
-// 2️⃣ ROUTE POUR VÉRIFIER LE CODE OTP ET RÉINITIALISER LE MOT DE PASSE
-app.post('/api/auth/reset-password-with-otp', async (req, res) => {
-    try {
-        const { email, otpCode, newPassword, confirmPassword, language = 'fr' } = req.body;
-        
-        const translations = {
-            fr: {
-                missing_fields: "Email, code OTP et nouveau mot de passe requis",
-                password_mismatch: "Les mots de passe ne correspondent pas",
-                password_too_short: "Le mot de passe doit contenir au moins 6 caractères",
-                invalid_code: "Code invalide ou expiré",
-                too_many_attempts: "Trop de tentatives. Veuillez refaire une demande",
-                success: "Mot de passe réinitialisé avec succès"
-            },
-            en: {
-                missing_fields: "Email, OTP code and new password required",
-                password_mismatch: "Passwords do not match",
-                password_too_short: "Password must be at least 6 characters",
-                invalid_code: "Invalid or expired code",
-                too_many_attempts: "Too many attempts. Please request a new code",
-                success: "Password reset successfully"
-            },
-            es: {
-                missing_fields: "Email, código OTP y nueva contraseña requeridos",
-                password_mismatch: "Las contraseñas no coinciden",
-                password_too_short: "La contraseña debe tener al menos 6 caracteres",
-                invalid_code: "Código inválido o expirado",
-                too_many_attempts: "Demasiados intentos. Solicita un nuevo código",
-                success: "Contraseña restablecida con éxito"
-            },
-            pt: {
-                missing_fields: "Email, código OTP e nova senha são obrigatórios",
-                password_mismatch: "As senhas não coincidem",
-                password_too_short: "A senha deve ter pelo menos 6 caracteres",
-                invalid_code: "Código inválido ou expirado",
-                too_many_attempts: "Muitas tentativas. Solicite um novo código",
-                success: "Senha redefinida com sucesso"
-            }
-        };
-        
-        const t = translations[language] || translations.fr;
-        
-        if (!email || !otpCode || !newPassword) {
-            return res.status(400).json({ error: t.missing_fields });
-        }
-        
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ error: t.password_mismatch });
-        }
-        
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: t.password_too_short });
-        }
-        
-        const otpData = resetOtpStore.get(email);
-        
-        if (!otpData) {
-            return res.status(400).json({ error: t.invalid_code });
-        }
-        
-        if (Date.now() > otpData.expiresAt) {
-            resetOtpStore.delete(email);
-            return res.status(400).json({ error: t.invalid_code });
-        }
-        
-        if (otpData.attempts >= 3) {
-            resetOtpStore.delete(email);
-            return res.status(400).json({ error: t.too_many_attempts });
-        }
-        
-        if (otpData.code !== otpCode) {
-            otpData.attempts++;
-            resetOtpStore.set(email, otpData);
-            return res.status(400).json({ error: t.invalid_code });
-        }
-        
-        // Code valide -> réinitialiser le mot de passe
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        
-        await prisma.user.update({
-            where: { id: otpData.userId },
-            data: { password: hashedPassword }
-        });
-        
-        // Supprimer le code OTP
-        resetOtpStore.delete(email);
-        
-        console.log(`✅ Mot de passe réinitialisé pour ${email}`);
-        
-        res.json({ 
-            success: true, 
-            message: t.success 
-        });
-        
-    } catch (error) {
-        console.error('❌ Erreur reset-password-with-otp:', error);
-        res.status(500).json({ error: "Erreur lors de la réinitialisation" });
-    }
-});
-
-// ============ TELEGRAM WEBHOOK MULTILINGUE ============
-const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-
-// ============ TRADUCTIONS TELEGRAM ==========
-const telegramTranslations = {
-    fr: {
-        welcome: (chatId) => `🚗 *Bienvenue sur Auto-stop !*\n\n` +
-            `Je suis votre assistant de notifications.\n\n` +
-            `📌 *Pour lier votre compte :*\n` +
-            `Allez dans l'application Auto-stop → Profil → Lier Telegram\n` +
-            `et entrez votre ID Telegram : \`${chatId}\`\n\n` +
-            `📱 *Vous recevrez :*\n` +
-            `• Confirmations de réservation\n` +
-            `• Rappels avant départ\n` +
-            `• Messages de sécurité\n` +
-            `• Fin de trajet et notation\n\n` +
-            `🚗 Bon voyage !`,
-        linked_success: "🔔 *Connexion réussie !*\n\nVotre compte Telegram a été lié avec succès à Auto-stop.\nVous recevrez désormais les notifications de vos trajets.",
-        already_linked: "ℹ️ *Déjà lié*\n\nVotre compte Telegram est déjà lié à Auto-stop.",
-        link_error: "❌ *Erreur de liaison*\n\nID Telegram invalide. Veuillez réessayer.",
-        unlinked: "🔔 *Liaison supprimée*\n\nVotre compte Telegram a été dissocié d'Auto-stop.",
-        new_booking: (passengerName, seats, departure, destination) => 
-            `🔔 *Nouvelle réservation !*\n\n👤 ${passengerName}\n👥 ${seats} place(s)\n📍 ${departure} → ${destination}`,
-        booking_confirmed: (driverName, departure, destination, date, time) =>
-            `✅ *Réservation confirmée !*\n\n👤 ${driverName}\n📍 ${departure} → ${destination}\n📅 ${date} à ${time}`,
-        reminder_2h: (departure, destination) => `⏰ *Rappel : Trajet dans 2h*\n\n${departure} → ${destination}`,
-        reminder_1h: (departure, destination) => `⏰ *Rappel : Trajet dans 1h*\n\n${departure} → ${destination}`,
-        reminder_30min: (departure, destination) => `⏰ *Rappel : Trajet dans 30min*\n\n${departure} → ${destination}`,
-        security_driver: (departure, destination) => `🔐 *Sécurité* Vérifiez la CNI de vos passagers`,
-        security_passenger: (departure, destination) => `🔐 *Sécurité* Vérifiez la plaque et la CNI du conducteur`,
-        ride_started_driver: (departure, destination) => `🚗 *Trajet en cours* ${departure} → ${destination}`,
-        ride_started_passenger: (departure, destination) => `🚗 *Trajet en cours* Bon voyage !`,
-        ride_completed: (departure, destination) => `✅ *Trajet terminé* ${departure} → ${destination}`
-    },
-    en: {
-        welcome: (chatId) => `🚗 *Welcome to Auto-stop!*\n\n` +
-            `I am your notification assistant.\n\n` +
-            `📌 *To link your account:*\n` +
-            `Go to Auto-stop app → Profile → Link Telegram\n` +
-            `and enter your Telegram ID: \`${chatId}\`\n\n` +
-            `🚗 Have a safe trip!`,
-        linked_success: "🔔 *Connection successful!*\n\nYour Telegram account has been linked to Auto-stop.",
-        already_linked: "ℹ️ *Already linked*\n\nYour Telegram account is already linked.",
-        link_error: "❌ *Link error*\n\nInvalid Telegram ID.",
-        unlinked: "🔔 *Link removed*\n\nYour Telegram account has been unlinked.",
-        new_booking: (passengerName, seats, departure, destination) => 
-            `🔔 *New booking!*\n\n👤 ${passengerName}\n👥 ${seats} seat(s)\n📍 ${departure} → ${destination}`,
-        booking_confirmed: (driverName, departure, destination, date, time) =>
-            `✅ *Booking confirmed!*\n\n👤 ${driverName}\n📍 ${departure} → ${destination}\n📅 ${date} at ${time}`,
-        reminder_2h: (departure, destination) => `⏰ *Reminder: Ride in 2h*\n\n${departure} → ${destination}`,
-        reminder_1h: (departure, destination) => `⏰ *Reminder: Ride in 1h*\n\n${departure} → ${destination}`,
-        reminder_30min: (departure, destination) => `⏰ *Reminder: Ride in 30min*\n\n${departure} → ${destination}`,
-        security_driver: (departure, destination) => `🔐 *Security* Check your passengers' ID`,
-        security_passenger: (departure, destination) => `🔐 *Security* Check license plate and driver's ID`,
-        ride_started_driver: (departure, destination) => `🚗 *Ride in progress* ${departure} → ${destination}`,
-        ride_started_passenger: (departure, destination) => `🚗 *Ride in progress* Have a great trip!`,
-        ride_completed: (departure, destination) => `✅ *Ride completed* ${departure} → ${destination}`
-    },
-    es: {
-        welcome: (chatId) => `🚗 *¡Bienvenido a Auto-stop!*\n\n` +
-            `Soy tu asistente de notificaciones.\n\n` +
-            `📌 *Para vincular tu cuenta:*\n` +
-            `Ve a Auto-stop → Perfil → Vincular Telegram\n` +
-            `e ingresa tu ID: \`${chatId}\`\n\n` +
-            `🚗 ¡Buen viaje!`,
-        linked_success: "🔔 *¡Conexión exitosa!*\n\nTu cuenta de Telegram ha sido vinculada.",
-        already_linked: "ℹ️ *Ya vinculado*\n\nTu cuenta ya está vinculada.",
-        link_error: "❌ *Error de vinculación*\n\nID inválido.",
-        unlinked: "🔔 *Vinculación eliminada*\n\nTu cuenta ha sido desvinculada.",
-        new_booking: (passengerName, seats, departure, destination) => 
-            `🔔 *¡Nueva reserva!*\n\n👤 ${passengerName}\n👥 ${seats} asiento(s)\n📍 ${departure} → ${destination}`,
-        booking_confirmed: (driverName, departure, destination, date, time) =>
-            `✅ *¡Reserva confirmada!*\n\n👤 ${driverName}\n📍 ${departure} → ${destination}\n📅 ${date} a las ${time}`,
-        reminder_2h: (departure, destination) => `⏰ *Recordatorio: Viaje en 2h*\n\n${departure} → ${destination}`,
-        reminder_1h: (departure, destination) => `⏰ *Recordatorio: Viaje en 1h*\n\n${departure} → ${destination}`,
-        reminder_30min: (departure, destination) => `⏰ *Recordatorio: Viaje en 30min*\n\n${departure} → ${destination}`,
-        security_driver: (departure, destination) => `🔐 *Seguridad* Verifica identificación de pasajeros`,
-        security_passenger: (departure, destination) => `🔐 *Seguridad* Verifica matrícula y DNI del conductor`,
-        ride_started_driver: (departure, destination) => `🚗 *Viaje en curso* ${departure} → ${destination}`,
-        ride_started_passenger: (departure, destination) => `🚗 *Viaje en curso* ¡Buen viaje!`,
-        ride_completed: (departure, destination) => `✅ *Viaje completado* ${departure} → ${destination}`
-    },
-    pt: {
-        welcome: (chatId) => `🚗 *Bem-vindo ao Auto-stop!*\n\n` +
-            `Sou seu assistente de notificações.\n\n` +
-            `📌 *Para vincular sua conta:*\n` +
-            `Vá ao Auto-stop → Perfil → Vincular Telegram\n` +
-            `e digite seu ID: \`${chatId}\`\n\n` +
-            `🚗 Boa viagem!`,
-        linked_success: "🔔 *Conexão bem-sucedida!*\n\nSua conta do Telegram foi vinculada.",
-        already_linked: "ℹ️ *Já vinculado*\n\nSua conta já está vinculada.",
-        link_error: "❌ *Erro de vinculação*\n\nID inválido.",
-        unlinked: "🔔 *Vinculação removida*\n\nSua conta foi desvinculada.",
-        new_booking: (passengerName, seats, departure, destination) => 
-            `🔔 *Nova reserva!*\n\n👤 ${passengerName}\n👥 ${seats} lugar(es)\n📍 ${departure} → ${destination}`,
-        booking_confirmed: (driverName, departure, destination, date, time) =>
-            `✅ *Reserva confirmada!*\n\n👤 ${driverName}\n📍 ${departure} → ${destination}\n📅 ${date} às ${time}`,
-        reminder_2h: (departure, destination) => `⏰ *Lembrete: Viagem em 2h*\n\n${departure} → ${destination}`,
-        reminder_1h: (departure, destination) => `⏰ *Lembrete: Viagem em 1h*\n\n${departure} → ${destination}`,
-        reminder_30min: (departure, destination) => `⏰ *Lembrete: Viagem em 30min*\n\n${departure} → ${destination}`,
-        security_driver: (departure, destination) => `🔐 *Segurança* Verifique identificação dos passageiros`,
-        security_passenger: (departure, destination) => `🔐 *Segurança* Verifique placa e identidade do motorista`,
-        ride_started_driver: (departure, destination) => `🚗 *Viagem em andamento* ${departure} → ${destination}`,
-        ride_started_passenger: (departure, destination) => `🚗 *Viagem em andamento* Boa viagem!`,
-        ride_completed: (departure, destination) => `✅ *Viagem concluída* ${departure} → ${destination}`
-    }
-};
-
-// Route pour recevoir les messages de Telegram (webhook multilingue)
-app.post(`/api/telegram/webhook/${TELEGRAM_TOKEN}`, async (req, res) => {
-    try {
-        const { message } = req.body;
-        
-        if (!message) {
-            return res.sendStatus(200);
-        }
-        
-        const chatId = message.chat.id;
-        const text = message.text || '';
-        
-        let userLang = message.from?.language_code || 'fr';
-        if (!['fr', 'en', 'es', 'pt'].includes(userLang)) {
-            userLang = 'fr';
-        }
-        
-        console.log(`📨 Message Telegram reçu de ${chatId}: ${text} (langue: ${userLang})`);
-        
-        const t = telegramTranslations[userLang] || telegramTranslations.fr;
-        
-        if (text === '/start') {
-            const reply = t.welcome(chatId);
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: reply,
-                    parse_mode: 'Markdown'
-                })
-            });
-            console.log(`🤖 Réponse /start envoyée à ${chatId} (${userLang})`);
-        } else if (text === '/help') {
-            const helpMessage = `📱 *Auto-stop - Aide*\n\n` +
-                `• /start - Démarrer le bot\n` +
-                `• /help - Voir cette aide\n` +
-                `• /status - Voir le statut de votre liaison\n\n` +
-                `🔗 Pour lier votre compte, allez dans l'application Auto-stop → Profil → Lier Telegram`;
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: helpMessage,
-                    parse_mode: 'Markdown'
-                })
-            });
-        } else if (text === '/status') {
-            const user = await prisma.user.findFirst({
-                where: { telegramChatId: chatId.toString() }
-            });
-            let statusMessage;
-            if (user) {
-                statusMessage = `✅ *Compte lié*\n\nVotre compte Telegram est lié à Auto-stop.\n👤 Utilisateur : ${user.name}\n📧 Email : ${user.email}`;
-            } else {
-                statusMessage = `❌ *Compte non lié*\n\nVotre compte Telegram n'est pas encore lié à Auto-stop.\n\n🔗 Allez dans l'application → Profil → Lier Telegram\net entrez votre ID : \`${chatId}\``;
-            }
-            await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: statusMessage,
-                    parse_mode: 'Markdown'
-                })
-            });
-        }
-        
-        res.sendStatus(200);
-    } catch (error) {
-        console.error('❌ Erreur webhook Telegram:', error);
-        res.sendStatus(500);
-    }
-});
-
-// Route pour configurer le webhook
-app.get('/api/telegram/set-webhook', async (req, res) => {
-    try {
-        let baseUrl = process.env.APP_URL || 'http://192.168.0.109:10000';
-        if (process.env.NODE_ENV === 'production') {
-            baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://ton-backend.onrender.com';
-        }
-        const webhookUrl = `${baseUrl}/api/telegram/webhook/${TELEGRAM_TOKEN}`;
-        console.log(`🔧 Configuration du webhook Telegram: ${webhookUrl}`);
-        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/setWebhook?url=${webhookUrl}`);
-        const data = await response.json();
-        if (data.ok) {
-            console.log(`✅ Webhook Telegram configuré : ${webhookUrl}`);
-            res.json({ success: true, message: 'Webhook configuré', url: webhookUrl });
-        } else {
-            console.error('❌ Erreur configuration webhook:', data.description);
-            res.status(400).json({ error: data.description });
-        }
-    } catch (error) {
-        console.error('❌ Erreur setWebhook:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Route pour supprimer le webhook
-app.get('/api/telegram/delete-webhook', async (req, res) => {
-    try {
-        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/deleteWebhook`);
-        const data = await response.json();
-        console.log(`🔧 Webhook Telegram supprimé`);
-        res.json(data);
-    } catch (error) {
-        console.error('❌ Erreur deleteWebhook:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// Route pour obtenir les infos du webhook
-app.get('/api/telegram/webhook-info', async (req, res) => {
-    try {
-        const response = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getWebhookInfo`);
-        const data = await response.json();
-        res.json(data);
-    } catch (error) {
-        console.error('❌ Erreur getWebhookInfo:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ============ LIER TELEGRAM À UN COMPTE AUTO-STOP (MULTILINGUE) ============
-app.post('/api/users/link-telegram', verifyToken, async (req, res) => {
-    try {
-        const { telegramChatId } = req.body;
-        
-        if (!telegramChatId) {
-            return res.status(400).json({ error: 'ID Telegram requis' });
-        }
-        
-        const user = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { language: true, name: true, email: true, telegramChatId: true }
-        });
-        
-        const userLang = user?.language || 'fr';
-        const t = telegramTranslations[userLang] || telegramTranslations.fr;
-        
-        if (user?.telegramChatId) {
-            return res.status(400).json({ error: t.already_linked });
-        }
-        
-        const testResponse = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: telegramChatId,
-                text: t.linked_success,
-                parse_mode: 'Markdown'
-            })
-        });
-        
-        const testData = await testResponse.json();
-        
-        if (!testData.ok) {
-            return res.status(400).json({ error: t.link_error });
-        }
-        
-        await prisma.user.update({
-            where: { id: req.userId },
-            data: { telegramChatId: telegramChatId.toString() }
-        });
-        
-        console.log(`✅ Utilisateur ${req.userId} a lié Telegram: ${telegramChatId} (${userLang})`);
-        
-        res.json({ success: true, message: 'Telegram lié avec succès' });
-        
-    } catch (error) {
-        console.error('❌ Erreur lien Telegram:', error);
-        res.status(500).json({ error: 'Erreur lors du lien Telegram' });
-    }
-});
-
-// Route pour obtenir l'ID Telegram de l'utilisateur
-app.get('/api/users/telegram-id', verifyToken, async (req, res) => {
-    try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { telegramChatId: true }
-        });
-        
-        res.json({ telegramChatId: user?.telegramChatId || null });
-    } catch (error) {
-        console.error('❌ Erreur getTelegramId:', error);
-        res.status(500).json({ error: 'Erreur serveur' });
-    }
-});
-
-// Route pour dissocier Telegram
-app.delete('/api/users/unlink-telegram', verifyToken, async (req, res) => {
-    try {
-        const user = await prisma.user.findUnique({
-            where: { id: req.userId },
-            select: { telegramChatId: true, language: true }
-        });
-        
-        const userLang = user?.language || 'fr';
-        const t = telegramTranslations[userLang] || telegramTranslations.fr;
-        
-        if (!user?.telegramChatId) {
-            return res.status(400).json({ error: 'Aucun compte Telegram lié' });
-        }
-        
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: user.telegramChatId,
-                text: t.unlinked,
-                parse_mode: 'Markdown'
-            })
-        });
-        
-        await prisma.user.update({
-            where: { id: req.userId },
-            data: { telegramChatId: null }
-        });
-        
-        res.json({ success: true, message: 'Telegram dissocié avec succès' });
-    } catch (error) {
-        console.error('❌ Erreur dissociation Telegram:', error);
-        res.status(500).json({ error: 'Erreur lors de la dissociation' });
-    }
-});
-
-// ============ ENREGISTRER LE TOKEN PUSH ============
-app.post('/api/users/push-token', verifyToken, async (req, res) => {
-    try {
-        const { pushToken } = req.body;
-        
-        if (!pushToken) {
-            return res.status(400).json({ error: 'Token push requis' });
-        }
-        
-        await prisma.user.update({
-            where: { id: req.userId },
-            data: { expoPushToken: pushToken }
-        });
-        
-        console.log(`📱 Token push enregistré pour ${req.userId}`);
-        res.json({ success: true });
-    } catch (error) {
-        console.error('❌ Erreur enregistrement push token:', error);
-        res.status(500).json({ error: 'Erreur serveur' });
-    }
-});
-
-// ============ FONCTIONS POUR ENVOYER DES NOTIFICATIONS TELEGRAM ============
-async function sendTelegramNotification(userId, type, rideData, additionalData = {}) {
-    try {
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { telegramChatId: true, language: true }
-        });
-        
-        if (!user?.telegramChatId) {
-            return false;
-        }
-        
-        const userLang = user.language || 'fr';
-        const t = telegramTranslations[userLang] || telegramTranslations.fr;
-        
-        let message = '';
-        
-        switch (type) {
-            case 'new_booking':
-                message = t.new_booking(rideData.passengerName, rideData.seats, rideData.departure, rideData.destination);
-                break;
-            case 'booking_confirmed':
-                message = t.booking_confirmed(rideData.driverName, rideData.departure, rideData.destination, rideData.date, rideData.time);
-                break;
-            case 'reminder_2h':
-                message = t.reminder_2h(rideData.departure, rideData.destination);
-                break;
-            case 'reminder_1h':
-                message = t.reminder_1h(rideData.departure, rideData.destination);
-                break;
-            case 'reminder_30min':
-                message = t.reminder_30min(rideData.departure, rideData.destination);
-                break;
-            case 'security_driver':
-                message = t.security_driver(rideData.departure, rideData.destination);
-                break;
-            case 'security_passenger':
-                message = t.security_passenger(rideData.departure, rideData.destination);
-                break;
-            case 'ride_started_driver':
-                message = t.ride_started_driver(rideData.departure, rideData.destination);
-                break;
-            case 'ride_started_passenger':
-                message = t.ride_started_passenger(rideData.departure, rideData.destination);
-                break;
-            case 'ride_completed':
-                message = t.ride_completed(rideData.departure, rideData.destination);
-                break;
-            default:
-                return false;
-        }
-        
-        await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: user.telegramChatId,
-                text: message,
-                parse_mode: 'Markdown'
-            })
-        });
-        
-        console.log(`🤖 Notification Telegram envoyée à ${user.telegramChatId} (${type}, ${userLang})`);
-        return true;
-        
-    } catch (error) {
-        console.error(`❌ Erreur envoi Telegram (${type}):`, error.message);
-        return false;
-    }
-}
-
-module.exports = { sendTelegramNotification };
 
 // ============ DÉMARRER LE SERVEUR ============
 server.listen(PORT, '0.0.0.0', () => {
@@ -2912,6 +2461,11 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`📝 http://localhost:${PORT}/api/register`);
     console.log(`🔐 http://localhost:${PORT}/api/login`);
     console.log(`🚗 http://localhost:${PORT}/api/rides`);
+    console.log(`🔍 http://localhost:${PORT}/api/rides/dynamic-search`);
     console.log(`📋 http://localhost:${PORT}/api/rides/my-published`);
     console.log(`📖 http://localhost:${PORT}/api/rides/my-bookings`);
+    console.log(`💰 http://localhost:${PORT}/api/users/payment-info`);
+    console.log(`💳 http://localhost:${PORT}/api/bookings/:id/confirm-cash`);
+    console.log(`💸 http://localhost:${PORT}/api/bookings/:id/release-payment`);
+    console.log(`📊 http://localhost:${PORT}/api/bookings/:id/payment-status`);
 });

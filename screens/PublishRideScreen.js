@@ -30,6 +30,17 @@ export default function PublishRideScreen({ route, navigation }) {
   const [loading, setLoading] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
 
+  // ========== CHAMPS POUR PAIEMENT HYBRIDE ==========
+  const [onlinePaymentPercent, setOnlinePaymentPercent] = useState('100'); // 100, 50, 25, 10
+  const [displayCurrency, setDisplayCurrency] = useState('XAF');
+  
+  // ========== NOUVEAUX CHAMPS POUR MODE DE RÉCEPTION ==========
+  const [receptionMethod, setReceptionMethod] = useState('mobile_money'); // mobile_money / bank_card
+  const [mobileMoneyNumber, setMobileMoneyNumber] = useState('');
+  const [bankCardNumber, setBankCardNumber] = useState('');
+  const [bankCardExpiry, setBankCardExpiry] = useState('');
+  const [bankCardCvv, setBankCardCvv] = useState('');
+
   // États pour les informations du conducteur
   const [driverFullName, setDriverFullName] = useState(user?.name || '');
   const [driverCniNumber, setDriverCniNumber] = useState('');
@@ -42,12 +53,10 @@ export default function PublishRideScreen({ route, navigation }) {
 
   // ========== FONCTIONS DE CONVERSION UTC ==========
   const toUTC = (localDate) => {
-    // Convertit une date locale en UTC
     return new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60 * 1000));
   };
 
   const fromUTCToLocal = (utcDate) => {
-    // Convertit une date UTC en locale (pour l'affichage)
     return new Date(utcDate.getTime() + (utcDate.getTimezoneOffset() * 60 * 1000));
   };
 
@@ -81,6 +90,29 @@ export default function PublishRideScreen({ route, navigation }) {
       idIssueDate: 'Date de délivrance',
       idExpiryDate: "Date d'expiration",
       idDeliveryPlace: 'Lieu de délivrance',
+      // Paiement hybride
+      onlinePayment: 'Paiement en ligne',
+      onlinePaymentPercent: 'Pourcentage à payer en ligne',
+      onlinePaymentHelp: 'Le reste sera payé en espèces au conducteur',
+      displayCurrency: 'Devise d\'affichage',
+      percent100: '100% (Paiement complet en ligne)',
+      percent50: '50% (Moitié en ligne, moitié espèces)',
+      percent25: '25% (Acompte, 75% espèces)',
+      percent10: '10% (Petit acompte, 90% espèces)',
+      // Mode de réception (NOUVEAU)
+      receptionMethod: '📱 Mode de réception de l\'argent',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Carte bancaire',
+      mobileMoneyPlaceholder: 'Numéro Mobile Money (ex: 690001122)',
+      cardNumberPlaceholder: 'Numéro de carte',
+      cardExpiryPlaceholder: 'MM/YY',
+      cardCvvPlaceholder: 'CVV',
+      currencies: {
+        XAF: 'Franc CFA (XAF)',
+        XOF: 'Franc CFA (XOF)',
+        EUR: 'Euro (EUR)',
+        USD: 'Dollar US (USD)'
+      },
       vehicleTypes: {
         MOTO: '🏍️ Moto',
         TAXI: '🚖 Taxi',
@@ -120,6 +152,27 @@ export default function PublishRideScreen({ route, navigation }) {
       idIssueDate: 'Issue date',
       idExpiryDate: 'Expiry date',
       idDeliveryPlace: 'Place of issue',
+      onlinePayment: 'Online payment',
+      onlinePaymentPercent: 'Percentage to pay online',
+      onlinePaymentHelp: 'The rest will be paid in cash to the driver',
+      displayCurrency: 'Display currency',
+      percent100: '100% (Full online payment)',
+      percent50: '50% (Half online, half cash)',
+      percent25: '25% (Deposit, 75% cash)',
+      percent10: '10% (Small deposit, 90% cash)',
+      receptionMethod: '📱 Money reception method',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Bank card',
+      mobileMoneyPlaceholder: 'Mobile Money number (ex: 690001122)',
+      cardNumberPlaceholder: 'Card number',
+      cardExpiryPlaceholder: 'MM/YY',
+      cardCvvPlaceholder: 'CVV',
+      currencies: {
+        XAF: 'CFA Franc (XAF)',
+        XOF: 'CFA Franc (XOF)',
+        EUR: 'Euro (EUR)',
+        USD: 'US Dollar (USD)'
+      },
       vehicleTypes: {
         MOTO: '🏍️ Moto',
         TAXI: '🚖 Taxi',
@@ -159,6 +212,27 @@ export default function PublishRideScreen({ route, navigation }) {
       idIssueDate: 'Fecha de expedición',
       idExpiryDate: 'Fecha de caducidad',
       idDeliveryPlace: 'Lugar de expedición',
+      onlinePayment: 'Pago en línea',
+      onlinePaymentPercent: 'Porcentaje a pagar en línea',
+      onlinePaymentHelp: 'El resto se pagará en efectivo al conductor',
+      displayCurrency: 'Moneda de visualización',
+      percent100: '100% (Pago completo en línea)',
+      percent50: '50% (Mitad en línea, mitad efectivo)',
+      percent25: '25% (Depósito, 75% efectivo)',
+      percent10: '10% (Pequeño depósito, 90% efectivo)',
+      receptionMethod: '📱 Método de recepción del dinero',
+      mobileMoney: '📱 Dinero móvil',
+      bankCard: '💳 Tarjeta bancaria',
+      mobileMoneyPlaceholder: 'Número Mobile Money (ej: 690001122)',
+      cardNumberPlaceholder: 'Número de tarjeta',
+      cardExpiryPlaceholder: 'MM/AA',
+      cardCvvPlaceholder: 'CVV',
+      currencies: {
+        XAF: 'Franco CFA (XAF)',
+        XOF: 'Franco CFA (XOF)',
+        EUR: 'Euro (EUR)',
+        USD: 'Dólar US (USD)'
+      },
       vehicleTypes: {
         MOTO: '🏍️ Moto',
         TAXI: '🚖 Taxi',
@@ -198,6 +272,27 @@ export default function PublishRideScreen({ route, navigation }) {
       idIssueDate: 'Data de emissão',
       idExpiryDate: 'Data de validade',
       idDeliveryPlace: 'Local de emissão',
+      onlinePayment: 'Pagamento online',
+      onlinePaymentPercent: 'Percentual a pagar online',
+      onlinePaymentHelp: 'O restante será pago em dinheiro ao motorista',
+      displayCurrency: 'Moeda de exibição',
+      percent100: '100% (Pagamento completo online)',
+      percent50: '50% (Metade online, metade dinheiro)',
+      percent25: '25% (Sinal, 75% dinheiro)',
+      percent10: '10% (Pequeno sinal, 90% dinheiro)',
+      receptionMethod: '📱 Método de recebimento do dinheiro',
+      mobileMoney: '📱 Dinheiro móvel',
+      bankCard: '💳 Cartão bancário',
+      mobileMoneyPlaceholder: 'Número Mobile Money (ex: 690001122)',
+      cardNumberPlaceholder: 'Número do cartão',
+      cardExpiryPlaceholder: 'MM/AA',
+      cardCvvPlaceholder: 'CVV',
+      currencies: {
+        XAF: 'Franco CFA (XAF)',
+        XOF: 'Franco CFA (XOF)',
+        EUR: 'Euro (EUR)',
+        USD: 'Dólar Americano (USD)'
+      },
       vehicleTypes: {
         MOTO: '🏍️ Moto',
         TAXI: '🚖 Táxi',
@@ -212,7 +307,6 @@ export default function PublishRideScreen({ route, navigation }) {
 
   const t = translations[language];
 
-  // Pour l'affichage, on utilise la date convertie en local
   const displayDate = fromUTCToLocal(date);
   const displayTime = displayDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const displayDateStr = displayDate.toLocaleDateString();
@@ -269,10 +363,6 @@ export default function PublishRideScreen({ route, navigation }) {
     }
   };
 
-  const handleDurationChange = () => {
-    calculateArrivalTime();
-  };
-
   const onArrivalTimeChange = (event, selectedTime) => {
     setShowArrivalPicker(false);
     if (selectedTime) {
@@ -283,6 +373,16 @@ export default function PublishRideScreen({ route, navigation }) {
   const handlePublish = async () => {
     if (!departure || !destination || !availableSeats || !price || !vehicleBrand) {
       Alert.alert(t.error, t.fillFields);
+      return;
+    }
+
+    // Validation du mode de réception
+    if (receptionMethod === 'mobile_money' && !mobileMoneyNumber) {
+      Alert.alert(t.error, 'Veuillez entrer votre numéro Mobile Money');
+      return;
+    }
+    if (receptionMethod === 'bank_card' && (!bankCardNumber || !bankCardExpiry)) {
+      Alert.alert(t.error, 'Veuillez entrer les informations de votre carte bancaire');
       return;
     }
 
@@ -300,7 +400,7 @@ export default function PublishRideScreen({ route, navigation }) {
           meetingPoint,
           destination,
           dropoffPoint,
-          date: date.toISOString(), // Déjà en UTC
+          date: date.toISOString(),
           availableSeats: parseInt(availableSeats),
           price: parseFloat(price),
           vehicleType,
@@ -309,6 +409,15 @@ export default function PublishRideScreen({ route, navigation }) {
           estimatedDuration: getTotalDurationInMinutes(),
           arrivalTime: arrivalTime ? arrivalTime.toISOString() : null,
           isRecurring,
+          // Paiement hybride
+          onlinePaymentPercent: parseInt(onlinePaymentPercent),
+          displayCurrency: displayCurrency,
+          // Mode de réception (NOUVEAU)
+          receptionMethod: receptionMethod,
+          mobileMoneyNumber: receptionMethod === 'mobile_money' ? mobileMoneyNumber : null,
+          bankCardNumber: receptionMethod === 'bank_card' ? bankCardNumber : null,
+          bankCardExpiry: receptionMethod === 'bank_card' ? bankCardExpiry : null,
+          bankCardCvv: receptionMethod === 'bank_card' ? bankCardCvv : null,
           // Informations du conducteur
           driverInfo: {
             fullName: driverFullName,
@@ -477,6 +586,132 @@ export default function PublishRideScreen({ route, navigation }) {
         </View>
       </View>
 
+      {/* ========== SECTION PAIEMENT HYBRIDE ========== */}
+      <Text style={styles.sectionTitle}>💳 {t.onlinePayment}</Text>
+      
+      <Text style={styles.label}>{t.onlinePaymentPercent}</Text>
+      <View style={styles.row}>
+        <TouchableOpacity 
+          style={[styles.percentButton, onlinePaymentPercent === '100' && styles.percentButtonSelected]}
+          onPress={() => setOnlinePaymentPercent('100')}
+        >
+          <Text style={[styles.percentButtonText, onlinePaymentPercent === '100' && styles.percentButtonTextSelected]}>
+            100%
+          </Text>
+          <Text style={styles.percentLabel}>{t.percent100}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.percentButton, onlinePaymentPercent === '50' && styles.percentButtonSelected]}
+          onPress={() => setOnlinePaymentPercent('50')}
+        >
+          <Text style={[styles.percentButtonText, onlinePaymentPercent === '50' && styles.percentButtonTextSelected]}>
+            50%
+          </Text>
+          <Text style={styles.percentLabel}>{t.percent50}</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.row}>
+        <TouchableOpacity 
+          style={[styles.percentButton, onlinePaymentPercent === '25' && styles.percentButtonSelected]}
+          onPress={() => setOnlinePaymentPercent('25')}
+        >
+          <Text style={[styles.percentButtonText, onlinePaymentPercent === '25' && styles.percentButtonTextSelected]}>
+            25%
+          </Text>
+          <Text style={styles.percentLabel}>{t.percent25}</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.percentButton, onlinePaymentPercent === '10' && styles.percentButtonSelected]}
+          onPress={() => setOnlinePaymentPercent('10')}
+        >
+          <Text style={[styles.percentButtonText, onlinePaymentPercent === '10' && styles.percentButtonTextSelected]}>
+            10%
+          </Text>
+          <Text style={styles.percentLabel}>{t.percent10}</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <Text style={styles.helpText}>{t.onlinePaymentHelp}</Text>
+
+      <Text style={styles.label}>{t.displayCurrency}</Text>
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={displayCurrency}
+          onValueChange={(itemValue) => setDisplayCurrency(itemValue)}
+          style={styles.picker}
+        >
+          <Picker.Item label={t.currencies.XAF} value="XAF" />
+          <Picker.Item label={t.currencies.XOF} value="XOF" />
+          <Picker.Item label={t.currencies.EUR} value="EUR" />
+          <Picker.Item label={t.currencies.USD} value="USD" />
+        </Picker>
+      </View>
+
+      {/* ========== NOUVEAU : MODE DE RÉCEPTION DE L'ARGENT ========== */}
+      <Text style={styles.sectionTitle}>💳 {t.receptionMethod}</Text>
+      
+      <View style={styles.row}>
+        <TouchableOpacity 
+          style={[styles.receptionButton, receptionMethod === 'mobile_money' && styles.receptionButtonSelected]}
+          onPress={() => setReceptionMethod('mobile_money')}
+        >
+          <Text style={[styles.receptionButtonText, receptionMethod === 'mobile_money' && styles.receptionButtonTextSelected]}>
+            {t.mobileMoney}
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.receptionButton, receptionMethod === 'bank_card' && styles.receptionButtonSelected]}
+          onPress={() => setReceptionMethod('bank_card')}
+        >
+          <Text style={[styles.receptionButtonText, receptionMethod === 'bank_card' && styles.receptionButtonTextSelected]}>
+            {t.bankCard}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {receptionMethod === 'mobile_money' ? (
+        <TextInput
+          style={styles.input}
+          placeholder={t.mobileMoneyPlaceholder}
+          value={mobileMoneyNumber}
+          onChangeText={setMobileMoneyNumber}
+          keyboardType="phone-pad"
+        />
+      ) : (
+        <>
+          <TextInput
+            style={styles.input}
+            placeholder={t.cardNumberPlaceholder}
+            value={bankCardNumber}
+            onChangeText={setBankCardNumber}
+            keyboardType="numeric"
+          />
+          <View style={styles.row}>
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder={t.cardExpiryPlaceholder}
+              value={bankCardExpiry}
+              onChangeText={setBankCardExpiry}
+            />
+            <TextInput
+              style={[styles.input, styles.halfInput]}
+              placeholder={t.cardCvvPlaceholder}
+              value={bankCardCvv}
+              onChangeText={setBankCardCvv}
+              keyboardType="numeric"
+              secureTextEntry
+            />
+          </View>
+        </>
+      )}
+
+      {/* ========== SECTION VÉHICULE ========== */}
+      <Text style={styles.sectionTitle}>🚗 Véhicule</Text>
+
       <Text style={styles.label}>{t.vehicleType}</Text>
       <View style={styles.pickerContainer}>
         <Picker
@@ -636,6 +871,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     fontSize: 16,
     backgroundColor: '#f8f8f8',
+    marginBottom: 10,
+  },
+  halfInput: {
+    flex: 1,
+    marginRight: 10,
   },
   row: {
     flexDirection: 'row',
@@ -652,6 +892,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#f8f8f8',
     alignItems: 'center',
+    marginBottom: 10,
   },
   dateButtonText: {
     fontSize: 16,
@@ -690,6 +931,58 @@ const styles = StyleSheet.create({
   publishButtonText: {
     color: 'white',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  // Styles pour les boutons de pourcentage
+  percentButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  percentButtonSelected: {
+    backgroundColor: '#FF5A5F',
+  },
+  percentButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  percentButtonTextSelected: {
+    color: 'white',
+  },
+  percentLabel: {
+    fontSize: 10,
+    color: '#666',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  helpText: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 15,
+    fontStyle: 'italic',
+  },
+  // Nouveaux styles pour le mode de réception
+  receptionButton: {
+    flex: 1,
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+  },
+  receptionButtonSelected: {
+    backgroundColor: '#FF5A5F',
+  },
+  receptionButtonText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  receptionButtonTextSelected: {
+    color: 'white',
     fontWeight: 'bold',
   },
 });

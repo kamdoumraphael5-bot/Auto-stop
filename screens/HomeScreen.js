@@ -5,10 +5,8 @@ import {
 } from 'react-native';
 import CountryFlag from 'react-native-country-flag';
 import RideCard from '../components/RideCard';
-import NotificationBell from '../components/NotificationBell'; // ← AJOUTÉ
+import NotificationBell from '../components/NotificationBell';
 import config from '../config';
-
-// const API_URL = 'http://192.168.0.109:3000'; // Supprimé
 
 export default function HomeScreen({ route, navigation }) {
   const { user, language = 'fr', updateUser } = route.params || {};
@@ -225,7 +223,6 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* HEADER MODIFIÉ AVEC LA CLOCHE DE NOTIFICATIONS */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>{t.welcome} 👋</Text>
@@ -280,22 +277,23 @@ export default function HomeScreen({ route, navigation }) {
           <Text style={styles.quickButtonText}>🚗</Text>
           <Text style={styles.quickButtonLabel}>{t.publishRide.split(' ')[0]}</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('SearchRide', { user, language })}>
+
+        {/* ✅ BOUTON RECHERCHE CORRIGÉ - POINTE VERS DYNAMICSEARCH */}
+        <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('DynamicSearch', { user, language })}>
           <Text style={styles.quickButtonText}>🔍</Text>
-          <Text style={styles.quickButtonLabel}>Search</Text>
+          <Text style={styles.quickButtonLabel}>{t.searchRide.split(' ')[0]}</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('MyRides', { user, language })}>
           <Text style={styles.quickButtonText}>📋</Text>
-          <Text style={styles.quickButtonLabel}>My rides</Text>
+          <Text style={styles.quickButtonLabel}>{t.myRides.split(' ')[0]}</Text>
           {unreadMessagesCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}</Text>
             </View>
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('Conversations', { user, language })}>
           <Text style={styles.quickButtonText}>💬</Text>
           <Text style={styles.quickButtonLabel}>{t.messages}</Text>
@@ -305,15 +303,15 @@ export default function HomeScreen({ route, navigation }) {
             </View>
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('Profile', { user, language })}>
           <Text style={styles.quickButtonText}>👤</Text>
-          <Text style={styles.quickButtonLabel}>Profile</Text>
+          <Text style={styles.quickButtonLabel}>{t.profile.split(' ')[0]}</Text>
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.quickButton} onPress={handleLogout}>
           <Text style={styles.quickButtonText}>🚪</Text>
-          <Text style={styles.quickButtonLabel}>Exit</Text>
+          <Text style={styles.quickButtonLabel}>{t.logout.split(' ')[0]}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -328,7 +326,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between', // ← MODIFIÉ pour espacement
+    justifyContent: 'space-between',
     backgroundColor: '#FF5A5F',
     padding: 20,
     paddingTop: 50,
@@ -338,7 +336,7 @@ const styles = StyleSheet.create({
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15, // Espace entre la cloche et l'avatar
+    gap: 15,
   },
   avatar: {
     width: 45,

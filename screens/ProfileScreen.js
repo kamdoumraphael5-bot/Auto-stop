@@ -19,6 +19,14 @@ export default function ProfileScreen({ route, navigation }) {
   const [telegramLinked, setTelegramLinked] = useState(false);
   const [telegramChatId, setTelegramChatId] = useState('');
   
+  // ========== NOUVEAUX STATES PAIEMENT ==========
+  const [paymentMethod, setPaymentMethod] = useState('mobile_money');
+  const [mobileMoneyNumber, setMobileMoneyNumber] = useState('');
+  const [bankCardNumber, setBankCardNumber] = useState('');
+  const [bankCardExpiry, setBankCardExpiry] = useState('');
+  const [bankCardCvv, setBankCardCvv] = useState('');
+  // =============================================
+  
   // Formulaire modification
   const [bio, setBio] = useState('');
   const [experienceLevel, setExperienceLevel] = useState('');
@@ -70,7 +78,17 @@ export default function ProfileScreen({ route, navigation }) {
       telegramSubtitle: 'Recevez vos notifications sur Telegram',
       linkTelegram: 'Lier Telegram',
       unlinkTelegram: 'Dissocier',
-      telegramLinked: 'Telegram lié'
+      telegramLinked: 'Telegram lié',
+      // ========== NOUVELLES TRADUCTIONS PAIEMENT ==========
+      paymentSection: '💳 Comment recevoir votre argent ?',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Carte bancaire',
+      mobileMoneyPlaceholder: 'Numéro Mobile Money (ex: 690001122)',
+      cardNumberPlaceholder: 'Numéro de carte',
+      cardExpiryPlaceholder: 'MM/YY',
+      cardCvvPlaceholder: 'CVV',
+      savePaymentInfo: 'Enregistrer les infos de paiement',
+      // ==================================================
     },
     en: {
       title: 'My profile',
@@ -115,7 +133,17 @@ export default function ProfileScreen({ route, navigation }) {
       telegramSubtitle: 'Receive your notifications on Telegram',
       linkTelegram: 'Link Telegram',
       unlinkTelegram: 'Unlink',
-      telegramLinked: 'Telegram linked'
+      telegramLinked: 'Telegram linked',
+      // ========== NEW PAYMENT TRANSLATIONS ==========
+      paymentSection: '💳 How to receive your money?',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Bank card',
+      mobileMoneyPlaceholder: 'Mobile Money number (ex: 690001122)',
+      cardNumberPlaceholder: 'Card number',
+      cardExpiryPlaceholder: 'MM/YY',
+      cardCvvPlaceholder: 'CVV',
+      savePaymentInfo: 'Save payment info',
+      // ==============================================
     },
     es: {
       title: 'Mi perfil',
@@ -160,7 +188,17 @@ export default function ProfileScreen({ route, navigation }) {
       telegramSubtitle: 'Recibe tus notificaciones en Telegram',
       linkTelegram: 'Vincular Telegram',
       unlinkTelegram: 'Desvincular',
-      telegramLinked: 'Telegram vinculado'
+      telegramLinked: 'Telegram vinculado',
+      // ========== NUEVAS TRADUCCIONES PAGO ==========
+      paymentSection: '💳 ¿Cómo recibir tu dinero?',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Tarjeta bancaria',
+      mobileMoneyPlaceholder: 'Número Mobile Money (ej: 690001122)',
+      cardNumberPlaceholder: 'Número de tarjeta',
+      cardExpiryPlaceholder: 'MM/AA',
+      cardCvvPlaceholder: 'CVV',
+      savePaymentInfo: 'Guardar información de pago',
+      // ==============================================
     },
     pt: {
       title: 'Meu perfil',
@@ -205,21 +243,81 @@ export default function ProfileScreen({ route, navigation }) {
       telegramSubtitle: 'Receba suas notificações no Telegram',
       linkTelegram: 'Vincular Telegram',
       unlinkTelegram: 'Desvincular',
-      telegramLinked: 'Telegram vinculado'
+      telegramLinked: 'Telegram vinculado',
+      // ========== NOVAS TRADUÇÕES PAGAMENTO ==========
+      paymentSection: '💳 Como receber seu dinheiro?',
+      mobileMoney: '📱 Mobile Money',
+      bankCard: '💳 Cartão bancário',
+      mobileMoneyPlaceholder: 'Número Mobile Money (ex: 690001122)',
+      cardNumberPlaceholder: 'Número do cartão',
+      cardExpiryPlaceholder: 'MM/AA',
+      cardCvvPlaceholder: 'CVV',
+      savePaymentInfo: 'Salvar informações de pagamento',
+      // ==============================================
     }
   };
 
   const t = translations[language];
 
+  // Charger les infos de paiement sauvegardées
   useEffect(() => {
     fetchProfile();
     fetchReviews();
     checkTelegramStatus();
+    fetchPaymentInfo(); // ← AJOUTÉ
   }, []);
+
+  // ========== NOUVELLE FONCTION : CHARGER INFOS PAIEMENT ==========
+  const fetchPaymentInfo = async () => {
+    try {
+      const response = await fetch(`${config.API_URL}/api/users/payment-info`, {
+        headers: { 'Authorization': `Bearer ${user?.token}` }
+      });
+      const data = await response.json();
+      if (data.paymentInfo) {
+        setPaymentMethod(data.paymentInfo.method || 'mobile_money');
+        setMobileMoneyNumber(data.paymentInfo.mobileMoneyNumber || '');
+        setBankCardNumber(data.paymentInfo.cardNumber || '');
+        setBankCardExpiry(data.paymentInfo.cardExpiry || '');
+      }
+    } catch (error) {
+      console.error('Erreur chargement infos paiement:', error);
+    }
+  };
+
+  // ========== NOUVELLE FONCTION : SAUVEGARDER INFOS PAIEMENT ==========
+  const savePaymentInfo = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${config.API_URL}/api/users/payment-info`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user?.token}`
+        },
+        body: JSON.stringify({
+          method: paymentMethod,
+          mobileMoneyNumber: paymentMethod === 'mobile_money' ? mobileMoneyNumber : null,
+          cardNumber: paymentMethod === 'bank_card' ? bankCardNumber : null,
+          cardExpiry: paymentMethod === 'bank_card' ? bankCardExpiry : null,
+          cardCvv: paymentMethod === 'bank_card' ? bankCardCvv : null
+        })
+      });
+      
+      if (response.ok) {
+        Alert.alert('Succès', t.savePaymentInfo);
+      } else {
+        Alert.alert('Erreur', 'Impossible de sauvegarder');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', 'Connexion au serveur impossible');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
-      // ✅ CORRIGÉ: utilise config.API_URL
       const response = await fetch(`${config.API_URL}/api/users/profile`, {
         headers: { 'Authorization': `Bearer ${user?.token}` }
       });
@@ -238,7 +336,6 @@ export default function ProfileScreen({ route, navigation }) {
 
   const fetchReviews = async () => {
     try {
-      // ✅ CORRIGÉ: utilise config.API_URL
       const response = await fetch(`${config.API_URL}/api/users/${user?.id}/reviews`);
       const data = await response.json();
       setReviews(data.reviews || []);
@@ -388,7 +485,6 @@ export default function ProfileScreen({ route, navigation }) {
     });
     
     try {
-      // ✅ CORRIGÉ: utilise config.API_URL
       const response = await fetch(`${config.API_URL}/api/users/upload-photo`, {
         method: 'POST',
         headers: {
@@ -415,7 +511,6 @@ export default function ProfileScreen({ route, navigation }) {
   const handleUpdateProfile = async () => {
     setLoading(true);
     try {
-      // ✅ CORRIGÉ: utilise config.API_URL
       const response = await fetch(`${config.API_URL}/api/users/profile`, {
         method: 'PUT',
         headers: {
@@ -571,6 +666,71 @@ export default function ProfileScreen({ route, navigation }) {
           <Text style={styles.ratingCount}>{breakdown.terrible}</Text>
         </View>
       </TouchableOpacity>
+
+      {/* ========== NOUVELLE SECTION PAIEMENT ========== */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>{t.paymentSection}</Text>
+        
+        <View style={styles.row}>
+          <TouchableOpacity 
+            style={[styles.paymentMethodButton, paymentMethod === 'mobile_money' && styles.paymentMethodSelected]}
+            onPress={() => setPaymentMethod('mobile_money')}
+          >
+            <Text style={paymentMethod === 'mobile_money' ? styles.paymentMethodTextSelected : styles.paymentMethodText}>
+              {t.mobileMoney}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.paymentMethodButton, paymentMethod === 'bank_card' && styles.paymentMethodSelected]}
+            onPress={() => setPaymentMethod('bank_card')}
+          >
+            <Text style={paymentMethod === 'bank_card' ? styles.paymentMethodTextSelected : styles.paymentMethodText}>
+              {t.bankCard}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        
+        {paymentMethod === 'mobile_money' ? (
+          <TextInput
+            style={styles.input}
+            placeholder={t.mobileMoneyPlaceholder}
+            value={mobileMoneyNumber}
+            onChangeText={setMobileMoneyNumber}
+            keyboardType="phone-pad"
+          />
+        ) : (
+          <>
+            <TextInput
+              style={styles.input}
+              placeholder={t.cardNumberPlaceholder}
+              value={bankCardNumber}
+              onChangeText={setBankCardNumber}
+              keyboardType="numeric"
+            />
+            <View style={styles.row}>
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder={t.cardExpiryPlaceholder}
+                value={bankCardExpiry}
+                onChangeText={setBankCardExpiry}
+              />
+              <TextInput
+                style={[styles.input, styles.halfInput]}
+                placeholder={t.cardCvvPlaceholder}
+                value={bankCardCvv}
+                onChangeText={setBankCardCvv}
+                keyboardType="numeric"
+                secureTextEntry
+              />
+            </View>
+          </>
+        )}
+        
+        <TouchableOpacity style={styles.savePaymentButton} onPress={savePaymentInfo}>
+          <Text style={styles.savePaymentButtonText}>{t.savePaymentInfo}</Text>
+        </TouchableOpacity>
+      </View>
+      {/* ============================================ */}
 
       {/* Verifications */}
       <View style={styles.verifications}>
@@ -870,6 +1030,61 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'right',
   },
+  // ========== NOUVEAUX STYLES PAIEMENT ==========
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+  },
+  paymentMethodButton: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginHorizontal: 5,
+    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  paymentMethodSelected: {
+    backgroundColor: '#FF5A5F',
+    borderColor: '#FF5A5F',
+  },
+  paymentMethodText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  paymentMethodTextSelected: {
+    fontSize: 14,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 15,
+    fontSize: 16,
+    backgroundColor: '#f8f8f8',
+  },
+  halfInput: {
+    flex: 1,
+    marginHorizontal: 5,
+  },
+  savePaymentButton: {
+    backgroundColor: '#4CAF50',
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 5,
+  },
+  savePaymentButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  // ============================================
   verifications: {
     backgroundColor: 'white',
     margin: 15,
@@ -1067,7 +1282,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
   },
-  // Styles Telegram
   telegramButton: {
     backgroundColor: '#26A5E4',
     padding: 14,
