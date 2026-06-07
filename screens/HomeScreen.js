@@ -20,14 +20,12 @@ export default function HomeScreen({ route, navigation }) {
   const translations = {
     fr: {
       welcome: 'Bonjour',
-      publishRide: '🚗 Publier un trajet',
-      publishSub: 'je suis conducteur',
-      searchRide: '🔍 Rechercher un trajet',
-      searchSub: 'je suis passager',
-      myRides: '📋 Mes trajets',
-      profile: '👤 Mon profil',
-      messages: '💬 Messages',
-      logout: '🚪 Se déconnecter',
+      publishRide: 'Publier',
+      searchRide: 'Recherche',
+      myRides: 'Mes trajets',
+      profile: 'Mon profil',
+      messages: 'Messages',
+      logout: 'Déconnexion',
       logoutConfirm: 'Voulez-vous vraiment vous déconnecter ?',
       yes: 'Oui',
       no: 'Non',
@@ -37,14 +35,12 @@ export default function HomeScreen({ route, navigation }) {
     },
     en: {
       welcome: 'Hello',
-      publishRide: '🚗 Publish a ride',
-      publishSub: 'I am a driver',
-      searchRide: '🔍 Search a ride',
-      searchSub: 'I am a passenger',
-      myRides: '📋 My rides',
-      profile: '👤 My profile',
-      messages: '💬 Messages',
-      logout: '🚪 Logout',
+      publishRide: 'Publish',
+      searchRide: 'Search',
+      myRides: 'My rides',
+      profile: 'My profile',
+      messages: 'Messages',
+      logout: 'Logout',
       logoutConfirm: 'Do you really want to logout?',
       yes: 'Yes',
       no: 'No',
@@ -54,14 +50,12 @@ export default function HomeScreen({ route, navigation }) {
     },
     es: {
       welcome: 'Hola',
-      publishRide: '🚗 Publicar viaje',
-      publishSub: 'soy conductor',
-      searchRide: '🔍 Buscar viaje',
-      searchSub: 'soy pasajero',
-      myRides: '📋 Mis viajes',
-      profile: '👤 Mi perfil',
-      messages: '💬 Mensajes',
-      logout: '🚪 Cerrar sesión',
+      publishRide: 'Publicar',
+      searchRide: 'Buscar',
+      myRides: 'Mis viajes',
+      profile: 'Mi perfil',
+      messages: 'Mensajes',
+      logout: 'Cerrar sesión',
       logoutConfirm: '¿Realmente quieres cerrar sesión?',
       yes: 'Sí',
       no: 'No',
@@ -71,14 +65,12 @@ export default function HomeScreen({ route, navigation }) {
     },
     pt: {
       welcome: 'Olá',
-      publishRide: '🚗 Publicar viagem',
-      publishSub: 'sou motorista',
-      searchRide: '🔍 Buscar viagem',
-      searchSub: 'sou passageiro',
-      myRides: '📋 Minhas viagens',
-      profile: '👤 Meu perfil',
-      messages: '💬 Mensagens',
-      logout: '🚪 Sair',
+      publishRide: 'Publicar',
+      searchRide: 'Buscar',
+      myRides: 'Minhas viagens',
+      profile: 'Meu perfil',
+      messages: 'Mensagens',
+      logout: 'Sair',
       logoutConfirm: 'Deseja realmente sair?',
       yes: 'Sim',
       no: 'Não',
@@ -223,6 +215,7 @@ export default function HomeScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* HEADER */}
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>{t.welcome} 👋</Text>
@@ -242,6 +235,7 @@ export default function HomeScreen({ route, navigation }) {
         </View>
       </View>
 
+      {/* LISTE DES TRAJETS */}
       <View style={styles.ridesContainer}>
         <Text style={styles.sectionTitle}>{t.availableRides}</Text>
         
@@ -272,21 +266,21 @@ export default function HomeScreen({ route, navigation }) {
         )}
       </View>
 
+      {/* MENU DU BAS (SANS PROFIL) */}
       <View style={styles.quickMenu}>
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('PublishRide', { user, language })}>
           <Text style={styles.quickButtonText}>🚗</Text>
-          <Text style={styles.quickButtonLabel}>{t.publishRide.split(' ')[0]}</Text>
+          <Text style={styles.quickButtonLabel}>{t.publishRide}</Text>
         </TouchableOpacity>
 
-        {/* ✅ BOUTON RECHERCHE CORRIGÉ - POINTE VERS DYNAMICSEARCH */}
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('DynamicSearch', { user, language })}>
           <Text style={styles.quickButtonText}>🔍</Text>
-          <Text style={styles.quickButtonLabel}>{t.searchRide.split(' ')[0]}</Text>
+          <Text style={styles.quickButtonLabel}>{t.searchRide}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('MyRides', { user, language })}>
           <Text style={styles.quickButtonText}>📋</Text>
-          <Text style={styles.quickButtonLabel}>{t.myRides.split(' ')[0]}</Text>
+          <Text style={styles.quickButtonLabel}>{t.myRides}</Text>
           {unreadMessagesCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}</Text>
@@ -304,14 +298,9 @@ export default function HomeScreen({ route, navigation }) {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.quickButton} onPress={() => navigation.navigate('Profile', { user, language })}>
-          <Text style={styles.quickButtonText}>👤</Text>
-          <Text style={styles.quickButtonLabel}>{t.profile.split(' ')[0]}</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.quickButton} onPress={handleLogout}>
           <Text style={styles.quickButtonText}>🚪</Text>
-          <Text style={styles.quickButtonLabel}>{t.logout.split(' ')[0]}</Text>
+          <Text style={styles.quickButtonLabel}>{t.logout}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -412,6 +401,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#666',
     marginTop: 2,
+    textAlign: 'center',
   },
   badge: {
     position: 'absolute',

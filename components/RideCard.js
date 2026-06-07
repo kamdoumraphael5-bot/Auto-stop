@@ -21,6 +21,13 @@ export default function RideCard({ ride, onPress, onPressDriver, onPressChat, cu
         return `${hours}h ${mins}min`;
     };
 
+    const vehicleLabel = {
+        fr: 'Véhicule',
+        en: 'Vehicle',
+        es: 'Vehículo',
+        pt: 'Veículo'
+    };
+
     const getVehicleIcon = (type) => {
         switch(type) {
             case 'MOTO': return '🏍️';
@@ -113,13 +120,6 @@ export default function RideCard({ ride, onPress, onPressDriver, onPressChat, cu
                         </View>
                     </View>
                 </TouchableOpacity>
-                
-                <View style={styles.vehicleBadge}>
-                    <Text style={styles.vehicleIcon}>{getVehicleIcon(ride.vehicleType)}</Text>
-                    <Text style={styles.vehicleBrand}>{ride.vehicleBrand}</Text>
-                    {ride.licensePlate && <Text style={styles.licensePlate}> [{ride.licensePlate}]</Text>}
-                    <Text style={styles.totalSeats}> - {totalSeats} places</Text>
-                </View>
             </View>
 
             <View style={styles.routeContainer}>
@@ -166,14 +166,27 @@ export default function RideCard({ ride, onPress, onPressDriver, onPressChat, cu
                 )}
             </View>
 
+            {/* Informations véhicule sous le trajet */}
+            <View style={styles.vehicleContainer}>
+                <Text style={styles.vehicleLabel}>{vehicleLabel[language]}</Text>
+                <View style={styles.vehicleInfoRow}>
+                    <Text style={styles.vehicleIcon}>{getVehicleIcon(ride.vehicleType)}</Text>
+                    <Text style={styles.vehicleBrand}>{ride.vehicleBrand}</Text>
+                    {ride.licensePlate && <Text style={styles.licensePlate}> [{ride.licensePlate}]</Text>}
+                    <Text style={styles.totalSeats}> • {totalSeats} places</Text>
+                </View>
+            </View>
+
+            {/* Footer avec date à gauche et infos à droite */}
             <View style={styles.footer}>
                 <View style={styles.dateContainer}>
                     <Text style={styles.dateIcon}>📅</Text>
                     <Text style={styles.dateText}>{formatDate(ride.date)}</Text>
                 </View>
+                
                 <View style={styles.rightContainer}>
                     <View style={styles.placesContainer}>
-                        <Text style={[styles.placesText, styles.availablePlaces]}>🟢 {availableSeats} places disponibles</Text>
+                        <Text style={[styles.placesText, styles.availablePlaces]}>🟢 {availableSeats} places dispo</Text>
                         <Text style={[styles.placesText, styles.bookedPlaces]}>🔴 {bookedSeats} places réservées</Text>
                     </View>
                     <Text style={styles.priceText}>{ride.price?.toLocaleString()} FCFA</Text>
@@ -199,11 +212,6 @@ const styles = StyleSheet.create({
     ratingContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
     ratingStar: { fontSize: 12, marginRight: 2 },
     rating: { fontSize: 12, color: '#666' },
-    vehicleBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8f8f8', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
-    vehicleIcon: { fontSize: 14, marginRight: 4 },
-    vehicleBrand: { fontSize: 12, color: '#666', fontWeight: 'bold' },
-    licensePlate: { fontSize: 11, color: '#FF5A5F', fontWeight: 'bold', marginLeft: 4 },
-    totalSeats: { fontSize: 11, color: '#666', marginLeft: 4 },
     routeContainer: { marginBottom: 15 },
     locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
     locationContent: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -221,6 +229,15 @@ const styles = StyleSheet.create({
     durationBadge: { flexDirection: 'row', backgroundColor: '#FF5A5F', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, alignItems: 'center', marginHorizontal: 8 },
     durationArrow: { fontSize: 12, color: 'white', fontWeight: 'bold' },
     durationText: { fontSize: 11, color: 'white', fontWeight: 'bold', marginHorizontal: 6 },
+    // Styles pour la section véhicule
+    vehicleContainer: { marginBottom: 12, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#eee' },
+    vehicleLabel: { fontSize: 11, color: '#999', marginBottom: 4 },
+    vehicleInfoRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
+    vehicleIcon: { fontSize: 12, marginRight: 4 },
+    vehicleBrand: { fontSize: 12, color: '#666', fontWeight: 'bold' },
+    licensePlate: { fontSize: 10, color: '#FF5A5F', fontWeight: 'bold', marginLeft: 2 },
+    totalSeats: { fontSize: 10, color: '#666', marginLeft: 2 },
+    // Footer avec date à gauche et infos à droite
     footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 12 },
     dateContainer: { flexDirection: 'row', alignItems: 'center' },
     dateIcon: { fontSize: 14, marginRight: 5 },
