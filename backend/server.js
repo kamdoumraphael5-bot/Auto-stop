@@ -80,6 +80,7 @@ console.log('🔔 Service de rappels initialisé');
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
 
 // ============ FONCTION DE VÉRIFICATION TOKEN ============
 const verifyToken = (req, res, next) => {
@@ -151,6 +152,48 @@ const upload = multer({
     fileFilter: fileFilter
 });
 
+// Configuration spécifique pour les photos de profil
+const profileUpload = multer({ 
+    storage: storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Seules les images sont autorisées'));
+        }
+    }
+});
+
+// ============ UPLOAD PHOTO DE PROFIL ============
+app.post('/api/users/upload-photo', verifyToken, upload.single('photo'), async (req, res) => {
+    try {
+        console.log('📸 Upload photo reçu pour userId:', req.userId);
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'Aucune photo fournie' });
+        }
+        
+        const photoUrl = `/uploads/profiles/${req.file.filename}`;
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: { photoUrl: photoUrl }
+        });
+        
+        console.log('✅ Photo mise à jour:', photoUrl);
+        
+        res.json({ 
+            success: true, 
+            photoUrl: photoUrl,
+            message: 'Photo mise à jour avec succès'
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur upload photo:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'upload: ' + error.message });
+    }
+});
 // ============ SERVEUR SOCKET.IO ============
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -1077,9 +1120,9 @@ app.get('/api/users/payment-info', verifyToken, async (req, res) => {
             select: {
                 paymentMethod: true,
                 mobileMoneyNumber: true,
-                cardNumber: true,
-                cardExpiry: true,
-                cardCvv: true,
+                bankCardNumber: true,      // ✅ Au lieu de cardNumber
+                bankCardExpiry: true,      // ✅ Au lieu de cardExpiry
+                bankCardCvv: true,         // ✅ Au lieu de cardCvv
                 bankName: true,
                 accountNumber: true
             }
@@ -1089,16 +1132,35 @@ app.get('/api/users/payment-info', verifyToken, async (req, res) => {
             paymentInfo: {
                 method: user?.paymentMethod || 'mobile_money',
                 mobileMoneyNumber: user?.mobileMoneyNumber || '',
-                cardNumber: user?.cardNumber || '',
-                cardExpiry: user?.cardExpiry || '',
-                cardCvv: user?.cardCvv || '',
+                // Format avec "bank" préfixé
+                bankCardNumber: user?.bankCardNumber || '',
+                bankCardExpiry: user?.bankCardExpiry || '',
+                bankCardCvv: user?.bankCardCvv || '',
+                // Format sans "bank" pour compatibilité (copie des valeurs)
+                cardNumber: user?.bankCardNumber || '',
+                cardExpiry: user?.bankCardExpiry || '',
+                cardCvv: user?.bankCardCvv || '',
                 bankName: user?.bankName || '',
                 accountNumber: user?.accountNumber || ''
             }
         });
     } catch (error) {
-        console.error('❌ Erreur get payment info:', error);
-        res.status(500).json({ error: 'Erreur lors du chargement' });
+        console.error('❌ Erreur get payment info:', error.message);
+        // ⚠️ TOUJOURS renvoyer des données, jamais d'erreur
+        res.json({ 
+            paymentInfo: {
+                method: 'mobile_money',
+                mobileMoneyNumber: '',
+                bankCardNumber: '',
+                bankCardExpiry: '',
+                bankCardCvv: '',
+                cardNumber: '',
+                cardExpiry: '',
+                cardCvv: '',
+                bankName: '',
+                accountNumber: ''
+            }
+        });
     }
 });
 
@@ -1107,38 +1169,47 @@ app.put('/api/users/payment-info', verifyToken, async (req, res) => {
         const { 
             method, 
             mobileMoneyNumber, 
-            cardNumber, 
-            cardExpiry, 
-            cardCvv,
+            bankCardNumber,      // ✅ Au lieu de cardNumber
+            bankCardExpiry,      // ✅ Au lieu de cardExpiry
+            bankCardCvv,         // ✅ Au lieu de cardCvv
             bankName,
-            accountNumber 
+            accountNumber,
+            // Support des noms sans "bank" (au cas où)
+            cardNumber,
+            cardExpiry,
+            cardCvv
         } = req.body;
+        
+        // Utiliser les bonnes valeurs (priorité aux champs avec "bank")
+        const finalCardNumber = bankCardNumber || cardNumber || null;
+        const finalCardExpiry = bankCardExpiry || cardExpiry || null;
+        const finalCardCvv = bankCardCvv || cardCvv || null;
         
         const updateData = {
             paymentMethod: method
         };
         
         if (method === 'mobile_money') {
-            updateData.mobileMoneyNumber = mobileMoneyNumber;
-            updateData.cardNumber = null;
-            updateData.cardExpiry = null;
-            updateData.cardCvv = null;
+            updateData.mobileMoneyNumber = mobileMoneyNumber || null;
+            updateData.bankCardNumber = null;
+            updateData.bankCardExpiry = null;
+            updateData.bankCardCvv = null;
             updateData.bankName = null;
             updateData.accountNumber = null;
         } else if (method === 'bank_card') {
-            updateData.cardNumber = cardNumber;
-            updateData.cardExpiry = cardExpiry;
-            updateData.cardCvv = cardCvv;
+            updateData.bankCardNumber = finalCardNumber;
+            updateData.bankCardExpiry = finalCardExpiry;
+            updateData.bankCardCvv = finalCardCvv;
             updateData.mobileMoneyNumber = null;
             updateData.bankName = null;
             updateData.accountNumber = null;
         } else if (method === 'bank_transfer') {
-            updateData.bankName = bankName;
-            updateData.accountNumber = accountNumber;
+            updateData.bankName = bankName || null;
+            updateData.accountNumber = accountNumber || null;
             updateData.mobileMoneyNumber = null;
-            updateData.cardNumber = null;
-            updateData.cardExpiry = null;
-            updateData.cardCvv = null;
+            updateData.bankCardNumber = null;
+            updateData.bankCardExpiry = null;
+            updateData.bankCardCvv = null;
         }
         
         await prisma.user.update({
@@ -1146,13 +1217,18 @@ app.put('/api/users/payment-info', verifyToken, async (req, res) => {
             data: updateData
         });
         
-        res.json({ success: true, message: 'Informations de paiement mises à jour' });
+        res.json({ 
+            success: true, 
+            message: 'Informations de paiement mises à jour' 
+        });
     } catch (error) {
-        console.error('❌ Erreur update payment info:', error);
-        res.status(500).json({ error: 'Erreur lors de la mise à jour' });
+        console.error('❌ Erreur update payment info:', error.message);
+        res.status(500).json({ 
+            success: false,
+            error: 'Erreur lors de la mise à jour' 
+        });
     }
 });
-
 // ============ ROUTES PUSH NOTIFICATIONS ============
 
 app.post('/api/users/push-token', verifyToken, async (req, res) => {
@@ -2495,6 +2571,36 @@ app.get('/api/users/:id/reviews', async (req, res) => {
 // ============ STOCKAGE OTP PASSWORD RESET ==========
 const resetOtpStore = new Map();
 
+
+  // ============ UPLOAD PHOTO DE PROFIL ============
+app.post('/api/users/upload-photo', verifyToken, upload.single('photo'), async (req, res) => {
+    try {
+        console.log('📸 Upload photo reçu pour userId:', req.userId);
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'Aucune photo fournie' });
+        }
+        
+        const photoUrl = `/uploads/profiles/${req.file.filename}`;
+        
+        await prisma.user.update({
+            where: { id: req.userId },
+            data: { photoUrl: photoUrl }
+        });
+        
+        console.log('✅ Photo mise à jour:', photoUrl);
+        
+        res.json({ 
+            success: true, 
+            photoUrl: photoUrl,
+            message: 'Photo mise à jour avec succès'
+        });
+        
+    } catch (error) {
+        console.error('❌ Erreur upload photo:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'upload: ' + error.message });
+    }
+});
 // ============ DÉMARRER LE SERVEUR ============
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`✅ Serveur Auto-stop lancé sur http://0.0.0.0:${PORT}`);
